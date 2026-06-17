@@ -168,9 +168,9 @@ const leaveRoom = async (req, res) => {
   try {
     if (global.isMockDB) {
       global.mockRooms = global.mockRooms || [];
-      const room = global.mockRooms.find((r) => r.roomId === roomId.toLowerCase() && r.isActive);
+      const room = global.mockRooms.find((r) => r.roomId === roomId.toLowerCase());
       if (!room) {
-        return res.status(404).json({ message: 'Room not found or has ended' });
+        return res.status(404).json({ message: 'Room not found' });
       }
 
       room.participants = room.participants.filter(
@@ -179,10 +179,10 @@ const leaveRoom = async (req, res) => {
       return res.json({ message: 'Left room successfully' });
     }
 
-    const room = await Room.findOne({ roomId: roomId.toLowerCase(), isActive: true });
+    const room = await Room.findOne({ roomId: roomId.toLowerCase() });
 
     if (!room) {
-      return res.status(404).json({ message: 'Room not found or has ended' });
+      return res.status(404).json({ message: 'Room not found' });
     }
 
     // Remove user from participants list

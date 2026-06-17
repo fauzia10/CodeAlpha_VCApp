@@ -28,23 +28,25 @@ app.use(express.json());
 // Helmet security headers wrapper
 app.use(helmet());
 
-// Rate Limiting: general API endpoints
+// Rate Limiting: general API endpoints (disabled in development)
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per window
   message: { message: 'Too many requests from this IP, please try again after 15 minutes' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV !== 'production', // Disabled in development
 });
 app.use('/api', apiLimiter);
 
-// Brute-force protection: harder limit on authentication endpoints
+// Brute-force protection: harder limit on authentication endpoints (disabled in development)
 const authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 15, // Limit each IP to 15 login/register attempts per hour
   message: { message: 'Too many authentication attempts from this IP, please try again after an hour' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV !== 'production', // Disabled in development
 });
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);

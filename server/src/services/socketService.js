@@ -1,5 +1,8 @@
 const socketIo = require('socket.io');
 
+// Store whiteboard drawing history in-memory mapped by roomId
+const roomWhiteboards = new Map();
+
 /**
  * Initializes Socket.io signaling server
  * @param {http.Server} server - Node HTTP server instance
@@ -72,6 +75,10 @@ const initSocketService = (server) => {
         userId,
         username,
       });
+
+      // 3. Send current whiteboard drawing data to the newly joined peer
+      const currentDrawData = roomWhiteboards.get(roomId.toLowerCase()) || [];
+      socket.emit('draw-data-receive', currentDrawData);
     });
 
     // WebRTC Signaling: Forward SDP Offer to target peer
@@ -117,6 +124,7 @@ const initSocketService = (server) => {
 
     // Real-time Collaborative Whiteboard Sync
     socket.on('draw-data-send', ({ roomId, drawData }) => {
+      roomWhiteboards.set(roomId.toLowerCase(), drawData);
       // Broadcast drawings to other participants in the room
       socket.to(roomId).emit('draw-data-receive', drawData);
     });
@@ -135,6 +143,13 @@ const initSocketService = (server) => {
           userId,
           username,
         });
+
+        // Cleanup room drawings if the room is empty
+        const room = io.sockets.adapter.rooms.get(roomId);
+        if (!room || room.size === 0) {
+          roomWhiteboards.delete(roomId.toLowerCase());
+          console.log(`Room ${roomId} is empty; cleared whiteboard cache`);
+        }
       }
     });
   });

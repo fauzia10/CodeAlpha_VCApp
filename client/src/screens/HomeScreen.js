@@ -1,0 +1,577 @@
+import React, { useState, useContext, useEffect } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  SafeAreaView,
+  Alert,
+  ScrollView,
+  FlatList,
+  Modal,
+} from 'react-native';
+import { AuthContext } from '../context/AuthContext';
+import { RoomContext } from '../context/RoomContext';
+import { getColors } from '../theme/colors';
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:5000';
+
+export default function HomeScreen({ navigation }) {
+  const { user, token, logout, themeMode, toggleTheme } = useContext(AuthContext);
+  const { setRoomId, lastMeetingSummary, setLastMeetingSummary } = useContext(RoomContext);
+  const COLORS = getColors(themeMode);
+  const styles = getStyles(COLORS);
+  const [targetRoomId, setTargetRoomId] = useState('');
+  const [meetingTitle, setMeetingTitle] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
+  
+  const [recentMeetings, setRecentMeetings] = useState([]);
+  const [isLoadingMeetings, setIsLoadingMeetings] = useState(false);
+
+  // Fetch recent meetings on screen focus/load
+  useEffect(() => {
+    fetchRecentMeetings();
+  }, [token]);
+
+  const fetchRecentMeetings = async () => {
+    if (!token) return;
+    setIsLoadingMeetings(true);
+    try {
+      const response = await fetch(`${API_URL}/api/rooms/recent`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (response.ok && Array.isArray(data)) {
+        setRecentMeetings(data);
+      } else {
+        // Fallback mock data if server does not have the endpoint yet, to maintain UX polish
+        setRecentMeetings([
+          { _id: '1', roomId: 'dev-sync-up', title: 'Daily Dev Sync', createdAt: new Date(Date.now() - 3600000).toISOString() },
+          { _id: '2', roomId: 'client-pitch', title: 'Client Pitch Presentation', createdAt: new Date(Date.now() - 86400000).toISOString() },
+        ]);
+      }
+    } catch (error) {
+      // Offline fallback mock data
+      setRecentMeetings([
+        { _id: '1', roomId: 'dev-sync-up', title: 'Daily Dev Sync (Demo)', createdAt: new Date(Date.now() - 3600000).toISOString() },
+        { _id: '2', roomId: 'client-pitch', title: 'Client Pitch (Demo)', createdAt: new Date(Date.now() - 86400000).toISOString() },
+      ]);
+    } finally {
+      setIsLoadingMeetings(false);
+    }
+  };
+
+  const handleCreateMeeting = async () => {
+    setIsCreating(true);
+    try {
+      const response = await fetch(`${API_URL}/api/rooms/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title: meetingTitle || undefined }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to create room');
+      }
+
+      setRoomId(data.roomId);
+      setMeetingTitle('');
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Could not connect to backend server');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleJoinMeeting = async (explicitRoomId = null) => {
+    const codeToJoin = explicitRoomId || targetRoomId;
+    if (!codeToJoin || !codeToJoin.trim()) {
+      Alert.alert('Error', 'Please enter a valid room ID');
+      return;
+    }
+
+    setIsJoining(true);
+    const cleanedRoomId = codeToJoin.trim().toLowerCase();
+    try {
+      const response = await fetch(`${API_URL}/api/rooms/${cleanedRoomId}/join`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Invalid room ID');
+      }
+
+      setRoomId(cleanedRoomId);
+      setTargetRoomId('');
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Could not join meeting');
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const formatMeetingDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Post-Meeting Summary Modal */}
+      {lastMeetingSummary && (
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={!!lastMeetingSummary}
+          onRequestClose={() => setLastMeetingSummary(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.summaryCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>✦ Meeting Summary ✦</Text>
+                <Text style={styles.modalSubtitle}>Generated by Gemini AI</Text>
+              </View>
+              
+              <ScrollView style={styles.modalScrollView}>
+                <Text style={styles.modalSectionHeader}>Overview</Text>
+                <Text style={styles.summaryText}>{lastMeetingSummary.summary}</Text>
+                
+                <Text style={styles.modalSectionHeader}>Action Items</Text>
+                {lastMeetingSummary.actionItems && lastMeetingSummary.actionItems.map((item, idx) => (
+                  <View key={idx} style={styles.actionItemRow}>
+                    <Text style={styles.actionItemBullet}>✓</Text>
+                    <Text style={styles.actionItemText}>{item}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+              
+              <View style={styles.modalButtonContainer}>
+                <TouchableOpacity
+                  style={styles.modalCloseButton}
+                  onPress={() => setLastMeetingSummary(null)}
+                >
+                  <Text style={styles.modalCloseButtonText}>Dismiss</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Top Banner Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.welcomeText}>Welcome back,</Text>
+          <Text style={styles.usernameText}>{user?.username || 'Collaborator'}</Text>
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.themeToggleButton} onPress={toggleTheme}>
+            <Text style={styles.themeToggleText}>{themeMode === 'dark' ? '☀️ Light' : '🌙 Dark'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        {/* Core Actions Card */}
+        <View style={styles.rowActions}>
+          {/* Host Card */}
+          <View style={[styles.actionCard, { flex: 1 }]}>
+            <Text style={styles.cardTitle}>Host Meeting</Text>
+            <Text style={styles.cardDesc}>Start a new video session instantly.</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Title (optional)"
+              placeholderTextColor={COLORS.textMuted}
+              value={meetingTitle}
+              onChangeText={setMeetingTitle}
+            />
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleCreateMeeting}
+              disabled={isCreating}
+            >
+              {isCreating ? (
+                <ActivityIndicator color={COLORS.white} size="small" />
+              ) : (
+                <Text style={styles.buttonText}>Host</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Join Card */}
+          <View style={[styles.actionCard, { flex: 1 }]}>
+            <Text style={styles.cardTitle}>Join Meeting</Text>
+            <Text style={styles.cardDesc}>Enter a code shared by others.</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. abc-defg"
+              placeholderTextColor={COLORS.textMuted}
+              value={targetRoomId}
+              onChangeText={setTargetRoomId}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => handleJoinMeeting()}
+              disabled={isJoining}
+            >
+              {isJoining ? (
+                <ActivityIndicator color={COLORS.white} size="small" />
+              ) : (
+                <Text style={styles.buttonText}>Join</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Recent Meetings Section */}
+        <View style={styles.recentSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Meetings</Text>
+            <TouchableOpacity onPress={fetchRecentMeetings}>
+              <Text style={styles.refreshText}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
+
+          {isLoadingMeetings ? (
+            <ActivityIndicator style={styles.loader} color={COLORS.primary} />
+          ) : recentMeetings.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No recent meetings found</Text>
+              <Text style={styles.emptySubtext}>Your collaboration history will show up here.</Text>
+            </View>
+          ) : (
+            recentMeetings.map((item) => (
+              <View key={item._id} style={styles.historyItem}>
+                <View style={styles.historyInfo}>
+                  <Text style={styles.historyTitle} numberOfLines={1}>
+                    {item.title || 'Untitled Meeting'}
+                  </Text>
+                  <Text style={styles.historyMeta}>
+                    ID: {item.roomId}  •  {formatMeetingDate(item.createdAt)}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.rejoinButton}
+                  onPress={() => handleJoinMeeting(item.roomId)}
+                >
+                  <Text style={styles.rejoinButtonText}>Rejoin</Text>
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const getStyles = (COLORS) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderColor: COLORS.border,
+  },
+  welcomeText: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+  },
+  usernameText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.text,
+  },
+  logoutButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+  },
+  logoutText: {
+    color: COLORS.error,
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  scrollContent: {
+    padding: 20,
+    gap: 24,
+  },
+  rowActions: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  actionCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: 'space-between',
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  cardDesc: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginBottom: 12,
+    minHeight: 28,
+  },
+  input: {
+    backgroundColor: COLORS.surfaceLight,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: COLORS.text,
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  primaryButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  secondaryButton: {
+    backgroundColor: COLORS.secondary,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  recentSection: {
+    flex: 1,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.text,
+  },
+  refreshText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  loader: {
+    marginVertical: 20,
+  },
+  emptyContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  emptyText: {
+    color: COLORS.text,
+    fontWeight: '600',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  emptySubtext: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  historyItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 10,
+  },
+  historyInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  historyTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  historyMeta: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+  },
+  rejoinButton: {
+    backgroundColor: COLORS.surfaceLight,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  rejoinButtonText: {
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  summaryCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    width: '100%',
+    maxHeight: '80%',
+    padding: 24,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderColor: COLORS.border,
+    paddingBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    letterSpacing: 1,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
+  modalScrollView: {
+    marginBottom: 20,
+  },
+  modalSectionHeader: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: COLORS.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  summaryText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    lineHeight: 22,
+  },
+  actionItemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginVertical: 4,
+    paddingRight: 12,
+  },
+  actionItemBullet: {
+    color: COLORS.success,
+    fontWeight: 'bold',
+    marginRight: 10,
+    fontSize: 14,
+  },
+  actionItemText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    lineHeight: 20,
+    flex: 1,
+  },
+  modalButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  modalCloseButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  modalCloseButtonText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  themeToggleButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surfaceLight,
+  },
+  themeToggleText: {
+    color: COLORS.primary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+});

@@ -365,20 +365,22 @@ export default function RoomScreen() {
     );
   };
 
-  const renderLocalVideoTile = (isPinnedView = false) => {
+  const renderLocalVideoTile = (isPinnedView = false, isFloating = true) => {
     return (
       <View
         style={[
           styles.remoteVideoTile,
-          isPinnedView ? styles.pinnedTile : styles.localVideoTile,
+          isPinnedView 
+            ? styles.pinnedTile 
+            : (isFloating ? styles.localVideoTile : (participantCount > 0 ? styles.gridTile : styles.fullTile)),
         ]}
       >
         <Text style={isPinnedView ? styles.videoLabel : styles.localVideoLabel}>You</Text>
         <TouchableOpacity
-          style={isPinnedView ? styles.pinButton : styles.pinButtonSmall}
+          style={isPinnedView ? styles.pinButton : (isFloating ? styles.pinButtonSmall : styles.pinButton)}
           onPress={() => setPinnedSocketId(pinnedSocketId === 'local' ? null : 'local')}
         >
-          <Text style={isPinnedView ? styles.pinButtonText : styles.pinButtonTextSmall}>
+          <Text style={isPinnedView ? styles.pinButtonText : (isFloating ? styles.pinButtonTextSmall : styles.pinButtonText)}>
             {pinnedSocketId === 'local' ? '📌 Unpin' : '📌 Pin'}
           </Text>
         </TouchableOpacity>
@@ -391,8 +393,8 @@ export default function RoomScreen() {
             muted={true}
           />
         ) : (
-          <View style={isPinnedView ? styles.videoAvatar : styles.videoAvatarSmall}>
-            <Text style={isPinnedView ? styles.avatarText : styles.avatarTextSmall}>Y</Text>
+          <View style={isPinnedView ? styles.videoAvatar : (isFloating ? styles.videoAvatarSmall : styles.videoAvatar)}>
+            <Text style={isPinnedView ? styles.avatarText : (isFloating ? styles.avatarTextSmall : styles.avatarText)}>Y</Text>
           </View>
         )}
       </View>
@@ -505,15 +507,11 @@ export default function RoomScreen() {
           </ScrollView>
         </View>
       ) : (
-        // Standard scrollable remote video grid
-        <>
-          <ScrollView contentContainerStyle={styles.remoteVideoGrid}>
-            {remoteKeys.map((socketId) => renderVideoTile(socketId, false))}
-          </ScrollView>
-          
-          {/* Local Video Thumbnail (Floating PiP) - only shown when others are in the call */}
-          {renderLocalVideoTile(false)}
-        </>
+        // Standard scrollable video grid (including both local self-video and remote videos)
+        <ScrollView contentContainerStyle={styles.remoteVideoGrid}>
+          {renderLocalVideoTile(false, false)}
+          {remoteKeys.map((socketId) => renderVideoTile(socketId, false))}
+        </ScrollView>
       )}
     </View>
   );

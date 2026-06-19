@@ -252,26 +252,24 @@ export const RoomProvider = ({ children }) => {
       console.log(`Received remote track stream for socket: ${targetSocketId}, track kind: ${event.track.kind}`);
       
       setRemoteStreams((prev) => {
-        const stream = prev[targetSocketId];
-        
-        // If stream already exists, append the new track to it
-        if (stream) {
-          const hasTrack = stream.getTracks().some((t) => t.id === event.track.id);
-          if (!hasTrack) {
-            stream.addTrack(event.track);
-          }
-          return {
-            ...prev,
-            [targetSocketId]: wrapMediaStream(stream),
-          };
-        }
-        
-        // If no stream exists, create or use the incoming one
+        const existingStream = prev[targetSocketId];
         let newStream = null;
-        if (event.streams && event.streams[0]) {
-          newStream = event.streams[0];
-        } else if (event.track) {
-          newStream = new MediaStream([event.track]);
+        
+        if (existingStream) {
+          // Extract existing tracks and check if the new track is already present
+          const tracks = existingStream.getTracks();
+          const hasTrack = tracks.some((t) => t.id === event.track.id);
+          const updatedTracks = hasTrack ? tracks : [...tracks, event.track];
+          
+          // Create a brand new MediaStream object to force React and the browser's video element to re-initialize the source
+          newStream = new MediaStream(updatedTracks);
+        } else {
+          // If no stream exists yet, create one
+          if (event.streams && event.streams[0]) {
+            newStream = new MediaStream(event.streams[0].getTracks());
+          } else if (event.track) {
+            newStream = new MediaStream([event.track]);
+          }
         }
         
         if (newStream) {

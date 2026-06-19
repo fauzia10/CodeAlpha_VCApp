@@ -21,9 +21,6 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
-    "experiments": {
-      "baseUrl": "/CodeAlpha_VCApp"
-    },
     "plugins": [
       "expo-secure-store"
     ]

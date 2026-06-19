@@ -22,7 +22,19 @@ connectDB();
 const app = express();
 
 // Enable Cross-Origin Resource Sharing (CORS) first
-app.use(cors());
+const corsOptions = {
+  origin: [
+    'https://codealpha-vcapp.onrender.com',
+    'http://localhost:8081',
+    'http://localhost:19006',
+    'http://10.0.2.2:5000',
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Handle pre-flight requests
 app.use(express.json());
 
 // Helmet security headers wrapper

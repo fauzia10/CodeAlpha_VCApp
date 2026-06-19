@@ -13,6 +13,6 @@ export const initializeSocket = (token) => {
       token,
     },
     autoConnect: false, // Manage connection explicitly
-    transports: ['websocket'], // Restrict to websockets for mobile performance
+    transports: ['websocket', 'polling'], // Allow polling fallback for Render cold starts
   });
 };

@@ -402,18 +402,38 @@ export default function RoomScreen() {
   const renderVideoView = () => (
     <View style={styles.videoContainer}>
       {participantCount === 0 ? (
-        // Empty Waiting State
-        <View style={styles.waitingContainer}>
-          <View style={styles.waitingIconCircle}>
-            <Text style={styles.waitingIconText}>👤</Text>
+        // Large full-screen view of self when alone in the room, with centered waiting overlay
+        <View style={styles.aloneContainer}>
+          {/* Main Full-Screen Self Video */}
+          <View style={styles.aloneSelfVideoContainer}>
+            {localStream && !isVideoMuted ? (
+              <RTCView
+                streamURL={localStream.toURL()}
+                style={styles.rtcStreamView}
+                objectFit="cover"
+                mirror={true}
+                muted={true}
+              />
+            ) : (
+              <View style={styles.videoAvatar}>
+                <Text style={styles.avatarText}>Y</Text>
+              </View>
+            )}
           </View>
-          <Text style={styles.waitingTitle}>Waiting for others to join</Text>
-          <Text style={styles.waitingDesc}>
-            Share this unique Room ID code with participants so they can join the session.
-          </Text>
-          <TouchableOpacity style={styles.copyButton} onPress={copyRoomIdToClipboard}>
-            <Text style={styles.copyButtonText}>Copy Room Code</Text>
-          </TouchableOpacity>
+          
+          {/* Centered Waiting Overlay Card */}
+          <View style={styles.waitingOverlayCard}>
+            <View style={styles.waitingIconCircle}>
+              <Text style={styles.waitingIconText}>👤</Text>
+            </View>
+            <Text style={styles.waitingTitle}>Waiting for others to join</Text>
+            <Text style={styles.waitingDesc}>
+              Share this unique Room ID code with participants so they can join the session.
+            </Text>
+            <TouchableOpacity style={styles.copyButton} onPress={copyRoomIdToClipboard}>
+              <Text style={styles.copyButtonText}>Copy Room Code</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : pinnedSocketId ? (
         // Pinned layout active
@@ -491,7 +511,7 @@ export default function RoomScreen() {
             {remoteKeys.map((socketId) => renderVideoTile(socketId, false))}
           </ScrollView>
           
-          {/* Local Video Thumbnail (Floating PiP) */}
+          {/* Local Video Thumbnail (Floating PiP) - only shown when others are in the call */}
           {renderLocalVideoTile(false)}
         </>
       )}
@@ -1956,5 +1976,35 @@ const getStyles = (COLORS) => StyleSheet.create({
     color: COLORS.text,
     marginTop: 4,
     fontWeight: 'bold',
+  },
+  aloneContainer: {
+    flex: 1,
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  aloneSelfVideoContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: COLORS.surface,
+  },
+  waitingOverlayCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    maxWidth: 400,
+    width: '90%',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 8,
+    opacity: 0.95,
   },
 });

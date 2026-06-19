@@ -23,12 +23,21 @@ const app = express();
 
 // Enable Cross-Origin Resource Sharing (CORS) first
 const corsOptions = {
-  origin: [
-    'https://codealpha-vcapp.onrender.com',
-    'http://localhost:8081',
-    'http://localhost:19006',
-    'http://10.0.2.2:5000',
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, postman, curl)
+    if (!origin) return callback(null, true);
+    
+    const isAllowed = 
+      origin.endsWith('.onrender.com') ||
+      origin.startsWith('http://localhost:') ||
+      origin === 'http://10.0.2.2:5000';
+      
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,

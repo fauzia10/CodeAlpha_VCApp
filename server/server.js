@@ -21,6 +21,9 @@ connectDB();
 
 const app = express();
 
+// Enable trust proxy so that express-rate-limit can correctly identify client IPs behind Render's reverse proxy
+app.set('trust proxy', 1);
+
 // Enable Cross-Origin Resource Sharing (CORS) first
 const corsOptions = {
   origin: function (origin, callback) {
@@ -62,9 +65,9 @@ app.use('/api', apiLimiter);
 
 // Brute-force protection: harder limit on authentication endpoints (disabled in development)
 const authLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 15, // Limit each IP to 15 login/register attempts per hour
-  message: { message: 'Too many authentication attempts from this IP, please try again after an hour' },
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 login/register attempts per 15 minutes
+  message: { message: 'Too many authentication attempts from this IP, please try again after 15 minutes' },
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV !== 'production', // Disabled in development

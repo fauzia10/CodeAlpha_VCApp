@@ -1,0 +1,40 @@
+services:
+  # Backend Node.js API + Socket.io Server
+  - type: web
+    name: syncora-server
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+  # Frontend Expo Web Static Site
+  - type: web
+    name: syncora-client
+    runtime: static
+    rootDir: client
+    buildCommand: npx expo export --platform web --output-dir dist
+    staticPublishPath: ./dist
+    envVars:
+      - key: EXPO_PUBLIC_API_URL
+        value: https://syncora-server-t7ml.onrender.com
+      - key: EXPO_PUBLIC_SOCKET_URL
+        value: https://syncora-server-t7ml.onrender.com
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

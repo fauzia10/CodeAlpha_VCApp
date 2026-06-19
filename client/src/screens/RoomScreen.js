@@ -12,6 +12,7 @@ import {
   Linking,
   ActivityIndicator,
   Platform,
+  Image,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { RTCView } from '../services/webrtc_shims';
@@ -45,6 +46,7 @@ export default function RoomScreen() {
     sendWhiteboardData,
     leaveRoom,
     setLastMeetingSummary,
+    socketRef,
   } = useContext(RoomContext);
 
   const COLORS = getColors(themeMode);
@@ -54,6 +56,16 @@ export default function RoomScreen() {
   const [redoStack, setRedoStack] = useState([]);
   const [showChatSidebar, setShowChatSidebar] = useState(false);
   const [isWideScreen, setIsWideScreen] = useState(Platform.OS === 'web' && Dimensions.get('window').width > 768);
+  const [pinnedSocketId, setPinnedSocketId] = useState(null);
+  const [showEmojiPanel, setShowEmojiPanel] = useState(false);
+  const [panelTab, setPanelTab] = useState('emoji'); // 'emoji' | 'gif'
+
+  // Clear pinning if the remote participant leaves
+  React.useEffect(() => {
+    if (pinnedSocketId && pinnedSocketId !== 'local' && !remoteStreams[pinnedSocketId]) {
+      setPinnedSocketId(null);
+    }
+  }, [remoteStreams, pinnedSocketId]);
 
   // Monitor screen width adjustments for responsive layout
   React.useEffect(() => {
@@ -138,10 +150,29 @@ export default function RoomScreen() {
   };
 
   const handleDownloadFile = (relativeUrl) => {
-    const fullUrl = `${API_URL}${relativeUrl}`;
+    const fullUrl = relativeUrl.startsWith('http') ? relativeUrl : `${API_URL}${relativeUrl}`;
     Linking.openURL(fullUrl).catch(() => {
       Alert.alert('Download Error', 'Could not open download link');
     });
+  };
+
+  const handleSendGif = (gifUrl) => {
+    if (socketRef.current && roomId) {
+      socketRef.current.emit('chat-message-send', {
+        roomId,
+        message: {
+          content: 'Sent a GIF',
+          messageType: 'file',
+          fileMetadata: {
+            fileName: 'Reaction.gif',
+            fileSize: 1024 * 1024,
+            mimeType: 'image/gif',
+            downloadUrl: gifUrl,
+          },
+        },
+      });
+    }
+    setShowEmojiPanel(false);
   };
 
   const handleLeaveRoom = async () => {
@@ -295,9 +326,78 @@ export default function RoomScreen() {
   };
 
   const remoteKeys = Object.keys(remoteStreams);
-  const participantCount = remoteKeys.length;
+  const participantCount = remoteKeys.length;  const renderVideoTile = (socketId, isPinnedView = false) => {
+    const stream = remoteStreams[socketId];
+    const peerInfo = participants.find((p) => p.socketId === socketId);
+    const username = peerInfo ? peerInfo.username : 'Participant';
+    
+    return (
+      <View
+        key={socketId}
+        style={[
+          styles.remoteVideoTile,
+          isPinnedView ? styles.pinnedTile : (participantCount > 1 ? styles.gridTile : styles.fullTile),
+        ]}
+      >
+        <Text style={styles.videoLabel}>{username}</Text>
+        <TouchableOpacity
+          style={styles.pinButton}
+          onPress={() => setPinnedSocketId(pinnedSocketId === socketId ? null : socketId)}
+        >
+          <Text style={styles.pinButtonText}>
+            {pinnedSocketId === socketId ? '📌 Unpin' : '📌 Pin'}
+          </Text>
+        </TouchableOpacity>
+        {stream ? (
+          <RTCView
+            streamURL={stream.toURL()}
+            style={styles.rtcStreamView}
+            objectFit="cover"
+          />
+        ) : (
+          <View style={styles.videoAvatar}>
+            <Text style={styles.avatarText}>
+              {username.substring(0, 2).toUpperCase()}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
 
-
+  const renderLocalVideoTile = (isPinnedView = false) => {
+    return (
+      <View
+        style={[
+          styles.remoteVideoTile,
+          isPinnedView ? styles.pinnedTile : styles.localVideoTile,
+        ]}
+      >
+        <Text style={isPinnedView ? styles.videoLabel : styles.localVideoLabel}>You</Text>
+        <TouchableOpacity
+          style={isPinnedView ? styles.pinButton : styles.pinButtonSmall}
+          onPress={() => setPinnedSocketId(pinnedSocketId === 'local' ? null : 'local')}
+        >
+          <Text style={isPinnedView ? styles.pinButtonText : styles.pinButtonTextSmall}>
+            {pinnedSocketId === 'local' ? '📌 Unpin' : '📌 Pin'}
+          </Text>
+        </TouchableOpacity>
+        {localStream && !isVideoMuted ? (
+          <RTCView
+            streamURL={localStream.toURL()}
+            style={styles.rtcStreamView}
+            objectFit="cover"
+            mirror={true}
+            muted={true}
+          />
+        ) : (
+          <View style={isPinnedView ? styles.videoAvatar : styles.videoAvatarSmall}>
+            <Text style={isPinnedView ? styles.avatarText : styles.avatarTextSmall}>Y</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const renderVideoView = () => (
     <View style={styles.videoContainer}>
@@ -315,59 +415,86 @@ export default function RoomScreen() {
             <Text style={styles.copyButtonText}>Copy Room Code</Text>
           </TouchableOpacity>
         </View>
-      ) : (
-        // Scrollable remote video grid
-        <ScrollView contentContainerStyle={styles.remoteVideoGrid}>
-          {remoteKeys.map((socketId) => {
-            const stream = remoteStreams[socketId];
-            const peerInfo = participants.find((p) => p.socketId === socketId);
-            const username = peerInfo ? peerInfo.username : 'Participant';
-            
-            return (
-              <View
-                key={socketId}
-                style={[
-                  styles.remoteVideoTile,
-                  participantCount > 1 ? styles.gridTile : styles.fullTile,
-                ]}
-              >
-                <Text style={styles.videoLabel}>{username}</Text>
-                {stream ? (
+      ) : pinnedSocketId ? (
+        // Pinned layout active
+        <View style={styles.pinnedStageContainer}>
+          <View style={{ flex: 1 }}>
+            {pinnedSocketId === 'local' ? renderLocalVideoTile(true) : renderVideoTile(pinnedSocketId, true)}
+          </View>
+          
+          <ScrollView
+            horizontal
+            style={styles.thumbnailScrollView}
+            contentContainerStyle={styles.thumbnailRow}
+            showsHorizontalScrollIndicator={false}
+          >
+            {/* Show local in thumbnail row if not pinned */}
+            {pinnedSocketId !== 'local' && (
+              <View style={styles.thumbnailContainer}>
+                <Text style={styles.thumbnailLabel}>You</Text>
+                <TouchableOpacity
+                  style={styles.pinButtonSmall}
+                  onPress={() => setPinnedSocketId('local')}
+                >
+                  <Text style={styles.pinButtonTextSmall}>📌</Text>
+                </TouchableOpacity>
+                {localStream && !isVideoMuted ? (
                   <RTCView
-                    streamURL={stream.toURL()}
+                    streamURL={localStream.toURL()}
                     style={styles.rtcStreamView}
                     objectFit="cover"
+                    mirror={true}
+                    muted={true}
                   />
                 ) : (
-                  <View style={styles.videoAvatar}>
-                    <Text style={styles.avatarText}>
-                      {username.substring(0, 2).toUpperCase()}
-                    </Text>
+                  <View style={styles.videoAvatarSmall}>
+                    <Text style={styles.avatarTextSmall}>Y</Text>
                   </View>
                 )}
               </View>
-            );
-          })}
-        </ScrollView>
+            )}
+            
+            {/* Show other remote in thumbnail row if not pinned */}
+            {remoteKeys.filter(id => id !== pinnedSocketId).map(id => {
+              const username = participants.find(p => p.socketId === id)?.username || 'Participant';
+              return (
+                <View key={id} style={styles.thumbnailContainer}>
+                  <Text style={styles.thumbnailLabel}>{username}</Text>
+                  <TouchableOpacity
+                    style={styles.pinButtonSmall}
+                    onPress={() => setPinnedSocketId(id)}
+                  >
+                    <Text style={styles.pinButtonTextSmall}>📌</Text>
+                  </TouchableOpacity>
+                  {remoteStreams[id] ? (
+                    <RTCView
+                      streamURL={remoteStreams[id].toURL()}
+                      style={styles.rtcStreamView}
+                      objectFit="cover"
+                    />
+                  ) : (
+                    <View style={styles.videoAvatarSmall}>
+                      <Text style={styles.avatarTextSmall}>
+                        {username.substring(0, 2).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : (
+        // Standard scrollable remote video grid
+        <>
+          <ScrollView contentContainerStyle={styles.remoteVideoGrid}>
+            {remoteKeys.map((socketId) => renderVideoTile(socketId, false))}
+          </ScrollView>
+          
+          {/* Local Video Thumbnail (Floating PiP) */}
+          {renderLocalVideoTile(false)}
+        </>
       )}
-
-      {/* Local Video Thumbnail (Floating PiP) */}
-      <View style={styles.localVideoTile}>
-        <Text style={styles.localVideoLabel}>You</Text>
-        {localStream && !isVideoMuted ? (
-          <RTCView
-            streamURL={localStream.toURL()}
-            style={styles.rtcStreamView}
-            objectFit="cover"
-            mirror={true}
-            muted={true}
-          />
-        ) : (
-          <View style={styles.videoAvatarSmall}>
-            <Text style={styles.avatarTextSmall}>Y</Text>
-          </View>
-        )}
-      </View>
     </View>
   );
 
@@ -388,6 +515,8 @@ export default function RoomScreen() {
           messages.map((msg, index) => {
             const isMe = msg.senderId === user?.id;
             const isFile = msg.messageType === 'file';
+            const isImage = isFile && (msg.fileMetadata?.mimeType?.startsWith('image/') || 
+                            /\.(gif|jpe?g|png|webp|bmp)$/i.test(msg.fileMetadata?.fileName || ''));
             
             return (
               <View
@@ -399,7 +528,35 @@ export default function RoomScreen() {
               >
                 {!isMe && <Text style={styles.messageSender}>{msg.username}</Text>}
                 
-                {isFile ? (
+                {isImage ? (
+                  // Image / GIF Preview bubble
+                  <TouchableOpacity
+                    style={[
+                      styles.imageMessageContainer,
+                      isMe ? styles.myImageMessage : styles.otherImageMessage,
+                    ]}
+                    onPress={() => handleDownloadFile(msg.fileMetadata.downloadUrl)}
+                  >
+                    <Image
+                      source={{ 
+                        uri: msg.fileMetadata.downloadUrl.startsWith('http') 
+                          ? msg.fileMetadata.downloadUrl 
+                          : `${API_URL}${msg.fileMetadata.downloadUrl}` 
+                      }}
+                      style={styles.inlineImagePreview}
+                      resizeMode="cover"
+                    />
+                    <Text 
+                      style={[
+                        styles.imageMetaText,
+                        { color: isMe ? '#ffffff' : COLORS.text }
+                      ]} 
+                      numberOfLines={1}
+                    >
+                      {msg.fileMetadata.fileName} ({formatFileSize(msg.fileMetadata.fileSize)})
+                    </Text>
+                  </TouchableOpacity>
+                ) : isFile ? (
                   // File bubble
                   <TouchableOpacity
                     style={[
@@ -457,6 +614,14 @@ export default function RoomScreen() {
             <Text style={styles.attachmentButtonText}>📎</Text>
           )}
         </TouchableOpacity>
+
+        {/* Emoji Selector Toggle Button */}
+        <TouchableOpacity
+          style={styles.attachmentButton}
+          onPress={() => setShowEmojiPanel(!showEmojiPanel)}
+        >
+          <Text style={styles.attachmentButtonText}>😀</Text>
+        </TouchableOpacity>
         
         <TextInput
           style={styles.chatInput}
@@ -478,6 +643,66 @@ export default function RoomScreen() {
           <Text style={styles.chatSendButtonText}>Send</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Emoji & GIF Reaction Panels */}
+      {showEmojiPanel && (
+        <View style={styles.emojiPanelContainer}>
+          {/* Header tabs: Emojis / GIFs */}
+          <View style={styles.panelTabs}>
+            <TouchableOpacity
+              style={[styles.panelTabButton, panelTab === 'emoji' && styles.activePanelTab]}
+              onPress={() => setPanelTab('emoji')}
+            >
+              <Text style={styles.panelTabText}>Emojis 😀</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.panelTabButton, panelTab === 'gif' && styles.activePanelTab]}
+              onPress={() => setPanelTab('gif')}
+            >
+              <Text style={styles.panelTabText}>GIFs 🎬</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {panelTab === 'emoji' ? (
+            <ScrollView style={styles.emojiScrollGrid}>
+              <View style={styles.emojiGrid}>
+                {['❤️', '😂', '👍', '🔥', '🎉', '😮', '😢', '👏', '🙌', '✨', '💡', '🚀', '💯', '🤔', '❌', '✅', '👋', '😍', '😎', '😜', '🙏', '🎂', '🥳', '👀'].map((emoji) => (
+                  <TouchableOpacity
+                    key={emoji}
+                    style={styles.emojiGridItem}
+                    onPress={() => setMessageText((prev) => prev + emoji)}
+                  >
+                    <Text style={styles.emojiText}>{emoji}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          ) : (
+            <ScrollView horizontal style={styles.gifScrollRow} showsHorizontalScrollIndicator={false}>
+              {[
+                { name: 'Thumbs Up', url: 'https://media.giphy.com/media/tIeCLkB8geYtW/giphy.gif' },
+                { name: 'Laughing', url: 'https://media.giphy.com/media/10yXFkBJ0Mwmo0/giphy.gif' },
+                { name: 'Applause', url: 'https://media.giphy.com/media/l3q2XhfQ8oCkm1K76/giphy.gif' },
+                { name: 'Shocked', url: 'https://media.giphy.com/media/26ufdipQqU2lhNA4g/giphy.gif' },
+                { name: 'Success', url: 'https://media.giphy.com/media/3o7qE1YN7aBOFPRw8E/giphy.gif' },
+                { name: 'Dance', url: 'https://media.giphy.com/media/l41YhWbJboLC1RPAk/giphy.gif' },
+                { name: 'Sad', url: 'https://media.giphy.com/media/9Y5BbDSkSTiY8/giphy.gif' },
+                { name: 'Mind Blown', url: 'https://media.giphy.com/media/l0IxYWDltdHEqujnO/giphy.gif' },
+                { name: 'Celebrate', url: 'https://media.giphy.com/media/kyLYXonQYYyYDI5akh/giphy.gif' }
+              ].map((gif, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={styles.gifItemContainer}
+                  onPress={() => handleSendGif(gif.url)}
+                >
+                  <Image source={{ uri: gif.url }} style={styles.gifThumbnail} />
+                  <Text style={styles.gifLabel}>{gif.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      )}
     </View>
   );
 
@@ -485,6 +710,56 @@ export default function RoomScreen() {
 
   const renderWhiteboardView = () => (
     <View style={styles.whiteboardContainer}>
+      {/* If mobile, show a small floating video tray at the top */}
+      {!isWideScreen && participantCount > 0 && (
+        <ScrollView
+          horizontal
+          style={styles.floatingVideoTray}
+          contentContainerStyle={styles.floatingVideoTrayContent}
+          showsHorizontalScrollIndicator={false}
+        >
+          {/* Local Stream */}
+          <View style={styles.trayVideoTile}>
+            <Text style={styles.trayVideoLabel}>You</Text>
+            {localStream && !isVideoMuted ? (
+              <RTCView
+                streamURL={localStream.toURL()}
+                style={styles.rtcStreamView}
+                objectFit="cover"
+                mirror={true}
+                muted={true}
+              />
+            ) : (
+              <Text style={styles.trayAvatarText}>Y</Text>
+            )}
+          </View>
+          
+          {/* Remote Streams */}
+          {remoteKeys.map((socketId) => {
+            const stream = remoteStreams[socketId];
+            const peerInfo = participants.find((p) => p.socketId === socketId);
+            const username = peerInfo ? peerInfo.username : 'Participant';
+            
+            return (
+              <View key={socketId} style={styles.trayVideoTile}>
+                <Text style={styles.trayVideoLabel}>{username}</Text>
+                {stream ? (
+                  <RTCView
+                    streamURL={stream.toURL()}
+                    style={styles.rtcStreamView}
+                    objectFit="cover"
+                  />
+                ) : (
+                  <Text style={styles.trayAvatarText}>
+                    {username.substring(0, 1).toUpperCase()}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
+
       {/* Whiteboard Toolbar */}
       <View style={styles.whiteboardToolbar}>
         {/* Color Selections */}
@@ -599,6 +874,56 @@ export default function RoomScreen() {
     </View>
   );
 
+  const renderCompactVideoList = () => (
+    <ScrollView style={styles.compactVideoList} contentContainerStyle={styles.compactVideoListContent}>
+      <Text style={styles.compactListTitle}>Live Call ({participantCount + 1})</Text>
+      
+      {/* Local Video Stream */}
+      <View style={styles.compactVideoTile}>
+        <Text style={styles.compactVideoLabel}>You</Text>
+        {localStream && !isVideoMuted ? (
+          <RTCView
+            streamURL={localStream.toURL()}
+            style={styles.rtcStreamView}
+            objectFit="cover"
+            mirror={true}
+            muted={true}
+          />
+        ) : (
+          <View style={styles.videoAvatarSmall}>
+            <Text style={styles.avatarTextSmall}>Y</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Remote Video Streams */}
+      {remoteKeys.map((socketId) => {
+        const stream = remoteStreams[socketId];
+        const peerInfo = participants.find((p) => p.socketId === socketId);
+        const username = peerInfo ? peerInfo.username : 'Participant';
+        
+        return (
+          <View key={socketId} style={styles.compactVideoTile}>
+            <Text style={styles.compactVideoLabel}>{username}</Text>
+            {stream ? (
+              <RTCView
+                streamURL={stream.toURL()}
+                style={styles.rtcStreamView}
+                objectFit="cover"
+              />
+            ) : (
+              <View style={styles.videoAvatarSmall}>
+                <Text style={styles.avatarTextSmall}>
+                  {username.substring(0, 2).toUpperCase()}
+                </Text>
+              </View>
+            )}
+          </View>
+        );
+      })}
+    </ScrollView>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       {isLeaving && (
@@ -629,7 +954,14 @@ export default function RoomScreen() {
         {isWideScreen ? (
           <View style={styles.wideContentContainer}>
             <View style={styles.mainViewContainer}>
-              {activeTab === 'whiteboard' ? renderWhiteboardView() : renderVideoView()}
+              {activeTab === 'whiteboard' ? (
+                <View style={styles.dualWhiteboardContainer}>
+                  <View style={{ flex: 1 }}>{renderWhiteboardView()}</View>
+                  {renderCompactVideoList()}
+                </View>
+              ) : (
+                renderVideoView()
+              )}
             </View>
             {showChatSidebar && renderChatView(true)}
           </View>
@@ -1363,5 +1695,266 @@ const getStyles = (COLORS) => StyleSheet.create({
   },
   mainViewContainer: {
     flex: 1,
+  },
+  pinButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    zIndex: 15,
+  },
+  pinButtonText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  pinnedStageContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    position: 'relative',
+    height: '100%',
+  },
+  pinnedTile: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  thumbnailScrollView: {
+    maxHeight: 140,
+    marginTop: 12,
+    paddingBottom: 8,
+  },
+  thumbnailRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+  thumbnailContainer: {
+    width: 100,
+    height: 120,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  thumbnailLabel: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    color: COLORS.text,
+    fontSize: 8,
+    zIndex: 10,
+  },
+  pinButtonSmall: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    zIndex: 15,
+  },
+  pinButtonTextSmall: {
+    color: '#ffffff',
+    fontSize: 8,
+    fontWeight: 'bold',
+  },
+  dualWhiteboardContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  compactVideoList: {
+    width: 180,
+    borderLeftWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  compactVideoListContent: {
+    padding: 12,
+    gap: 12,
+    paddingBottom: 24,
+  },
+  compactListTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: COLORS.text,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  compactVideoTile: {
+    width: '100%',
+    height: 110,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.background,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  compactVideoLabel: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    color: COLORS.text,
+    fontSize: 8,
+    fontWeight: '600',
+    zIndex: 10,
+  },
+  floatingVideoTray: {
+    maxHeight: 70,
+    marginBottom: 8,
+  },
+  floatingVideoTrayContent: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+  },
+  trayVideoTile: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.surface,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  trayVideoLabel: {
+    position: 'absolute',
+    bottom: 2,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+    borderRadius: 3,
+    color: COLORS.text,
+    fontSize: 6,
+    fontWeight: '600',
+    zIndex: 10,
+  },
+  trayAvatarText: {
+    color: COLORS.textMuted,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  imageMessageContainer: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 6,
+    backgroundColor: COLORS.surface,
+    width: 240,
+  },
+  myImageMessage: {
+    backgroundColor: COLORS.primary,
+  },
+  otherImageMessage: {
+    backgroundColor: COLORS.surface,
+  },
+  inlineImagePreview: {
+    width: '100%',
+    height: 160,
+    borderRadius: 12,
+  },
+  imageMetaText: {
+    fontSize: 10,
+    color: '#ffffff',
+    marginTop: 6,
+    paddingHorizontal: 4,
+    textAlign: 'center',
+  },
+  emojiPanelContainer: {
+    backgroundColor: COLORS.surface,
+    borderTopWidth: 1,
+    borderColor: COLORS.border,
+    padding: 12,
+    height: 180,
+  },
+  panelTabs: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 10,
+    gap: 16,
+  },
+  panelTabButton: {
+    paddingBottom: 6,
+  },
+  activePanelTab: {
+    borderBottomWidth: 2,
+    borderColor: COLORS.primary,
+  },
+  panelTabText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: COLORS.text,
+  },
+  emojiScrollGrid: {
+    flex: 1,
+  },
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+  },
+  emojiGridItem: {
+    width: 38,
+    height: 38,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+    backgroundColor: COLORS.surfaceLight,
+  },
+  emojiText: {
+    fontSize: 18,
+  },
+  gifScrollRow: {
+    flex: 1,
+  },
+  gifItemContainer: {
+    width: 100,
+    height: 110,
+    marginRight: 12,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: COLORS.surfaceLight,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  gifThumbnail: {
+    width: '100%',
+    height: 85,
+    borderRadius: 6,
+  },
+  gifLabel: {
+    fontSize: 8,
+    color: COLORS.text,
+    marginTop: 4,
+    fontWeight: 'bold',
   },
 });

@@ -23,7 +23,7 @@ services:
     name: syncora-client
     runtime: static
     rootDir: client
-    buildCommand: npx expo export --platform web --output-dir dist
+    buildCommand: npm install && npx expo export --platform web --output-dir dist
     staticPublishPath: ./dist
     envVars:
       - key: EXPO_PUBLIC_API_URL

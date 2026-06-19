@@ -79,11 +79,14 @@ const RTCView = ({ streamURL, style, objectFit, mirror, muted }) => {
   );
 };
 
+const MediaStream = typeof window !== 'undefined' ? window.MediaStream : null;
+
 export {
   mediaDevices,
   RTCPeerConnection,
   RTCIceCandidate,
   RTCSessionDescription,
   RTCView,
-  wrapStream as wrapMediaStream
+  wrapStream as wrapMediaStream,
+  MediaStream
 };

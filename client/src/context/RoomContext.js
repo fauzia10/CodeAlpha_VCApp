@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useRef, useContext } from 'react';
 import { Alert } from 'react-native';
-import { mediaDevices, RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, wrapMediaStream } from '../services/webrtc_shims';
+import { mediaDevices, RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, wrapMediaStream, MediaStream } from '../services/webrtc_shims';
 import { AuthContext } from './AuthContext';
 import { initializeSocket } from '../services/socket';
 import { peerConnectionConfig } from '../services/webrtc';
@@ -183,18 +183,16 @@ export const RoomProvider = ({ children }) => {
       socket.on('receive-ice-candidate', async ({ senderSocketId, candidate }) => {
         console.log(`Received ICE Candidate from peer socket: ${senderSocketId}`);
         const pc = peersRef.current[senderSocketId];
-        if (pc) {
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
           try {
-            if (pc.remoteDescription && pc.remoteDescription.type) {
-              await pc.addIceCandidate(new RTCIceCandidate(candidate));
-            } else {
-              // Queue candidate if remote description is not set yet
-              iceCandidateQueues.current[senderSocketId] = iceCandidateQueues.current[senderSocketId] || [];
-              iceCandidateQueues.current[senderSocketId].push(candidate);
-            }
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
           } catch (err) {
             console.error('Failed to add remote ICE Candidate', err);
           }
+        } else {
+          // Queue candidate if peer connection or remote description is not ready yet
+          iceCandidateQueues.current[senderSocketId] = iceCandidateQueues.current[senderSocketId] || [];
+          iceCandidateQueues.current[senderSocketId].push(candidate);
         }
       });
 
@@ -251,14 +249,40 @@ export const RoomProvider = ({ children }) => {
 
     // Handle receiving remote media tracks
     pc.ontrack = (event) => {
-      if (event.streams && event.streams[0]) {
-        console.log(`Received remote track stream for socket: ${targetSocketId}`);
-        const remoteStream = wrapMediaStream(event.streams[0]);
-        setRemoteStreams((prev) => ({
-          ...prev,
-          [targetSocketId]: remoteStream,
-        }));
-      }
+      console.log(`Received remote track stream for socket: ${targetSocketId}, track kind: ${event.track.kind}`);
+      
+      setRemoteStreams((prev) => {
+        const stream = prev[targetSocketId];
+        
+        // If stream already exists, append the new track to it
+        if (stream) {
+          const hasTrack = stream.getTracks().some((t) => t.id === event.track.id);
+          if (!hasTrack) {
+            stream.addTrack(event.track);
+          }
+          return {
+            ...prev,
+            [targetSocketId]: wrapMediaStream(stream),
+          };
+        }
+        
+        // If no stream exists, create or use the incoming one
+        let newStream = null;
+        if (event.streams && event.streams[0]) {
+          newStream = event.streams[0];
+        } else if (event.track) {
+          newStream = new MediaStream([event.track]);
+        }
+        
+        if (newStream) {
+          return {
+            ...prev,
+            [targetSocketId]: wrapMediaStream(newStream),
+          };
+        }
+        
+        return prev;
+      });
     };
 
     // If we are the connection initiator, generate SDP Offer immediately

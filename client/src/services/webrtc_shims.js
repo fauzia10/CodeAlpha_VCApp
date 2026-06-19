@@ -1,4 +1,4 @@
-import { mediaDevices, RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, RTCView } from 'react-native-webrtc';
+import { mediaDevices, RTCPeerConnection, RTCIceCandidate, RTCSessionDescription, RTCView, MediaStream } from 'react-native-webrtc';
 
 const wrapMediaStream = (stream) => stream;
 
@@ -8,5 +8,6 @@ export {
   RTCIceCandidate,
   RTCSessionDescription,
   RTCView,
-  wrapMediaStream
+  wrapMediaStream,
+  MediaStream
 };

@@ -501,8 +501,18 @@ export default function RoomScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            <View style={styles.canvasContainer}>
-              <Svg style={StyleSheet.absoluteFill} onTouchStart={handleDrawStart} onTouchMove={handleDrawMove} onTouchEnd={handleDrawEnd} onMouseDown={handleDrawStart} onMouseMove={handleDrawMove} onMouseUp={handleDrawEnd} onMouseLeave={handleDrawEnd}>
+            <View 
+              ref={canvasRef}
+              style={styles.canvasContainer}
+              onTouchStart={handleDrawStart} 
+              onTouchMove={handleDrawMove} 
+              onTouchEnd={handleDrawEnd} 
+              onMouseDown={handleDrawStart} 
+              onMouseMove={handleDrawMove} 
+              onMouseUp={handleDrawEnd} 
+              onMouseLeave={handleDrawEnd}
+            >
+              <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
                 {whiteboardLines.map((line, index) => (
                   <Polyline key={index} points={line.points.join(' ')} fill="none" stroke={line.color} strokeWidth={line.thickness} strokeLinecap="round" strokeLinejoin="round" />
                 ))}

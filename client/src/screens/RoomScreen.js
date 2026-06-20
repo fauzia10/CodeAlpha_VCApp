@@ -728,7 +728,6 @@ export default function RoomScreen() {
         </TouchableOpacity>
       </View>
 
-      {renderDiagnosticsPanel()}
     </SafeAreaView>
   );
 }

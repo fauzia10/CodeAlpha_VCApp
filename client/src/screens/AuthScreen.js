@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { getColors } from '../theme/colors';
@@ -57,6 +58,7 @@ export default function AuthScreen() {
           <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
             <Text style={styles.themeToggleText}>{themeMode === 'dark' ? '☀️ Light' : '🌙 Dark'}</Text>
           </TouchableOpacity>
+          <Image source={require('../../assets/logo.png')} style={styles.logo} />
           <Text style={styles.title}>Syncora</Text>
           <Text style={styles.subtitle}>
             {isLogin ? 'Sign in to start collaboration' : 'Create an account to join meetings'}
@@ -169,6 +171,13 @@ const getStyles = (COLORS) => StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 20,
     elevation: 8,
+    alignItems: 'center',
+  },
+  logo: {
+    width: 64,
+    height: 64,
+    marginBottom: 8,
+    resizeMode: 'contain',
   },
   title: {
     fontSize: 32,

@@ -148,6 +148,18 @@ const initSocketService = (server) => {
       socket.to(roomId).emit('draw-data-receive', drawData);
     });
 
+    // Generic Room Event Broadcast (used for notifications, media states, presentation states)
+    socket.on('room-event-broadcast', ({ roomId, eventType, payload }) => {
+      // Relay event to other participants in the room
+      socket.to(roomId).emit('room-event-receive', {
+        senderId: socket.userId,
+        username: socket.username,
+        eventType,
+        payload,
+        timestamp: new Date().toISOString()
+      });
+    });
+
     // Handle user disconnects
     socket.on('disconnect', () => {
       console.log(`Socket disconnected: ${socket.id}`);

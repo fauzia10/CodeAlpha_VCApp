@@ -21,6 +21,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { AuthContext } from '../context/AuthContext';
 import { RoomContext } from '../context/RoomContext';
 import { getColors } from '../theme/colors';
+import { ToastContainer } from '../components/ToastContainer';
 
 const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:5000';
@@ -74,12 +75,23 @@ export default function RoomScreen() {
     socketRef,
     diagnostics,
     clearDiagnosticsErrors,
+    presentationState,
+    activeSpeakerId,
+    toasts,
+    removeToast,
+    addToast,
+    broadcastWhiteboardDrawing,
+    toggleWhiteboardState,
   } = useContext(RoomContext);
 
   const COLORS = getColors(themeMode);
   const styles = getStyles(COLORS);
 
+  const [layoutMode, setLayoutMode] = useState('grid'); // 'grid', 'focus', 'speaker', 'presentation', 'compact'
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+
   const [activeTab, setActiveTab] = useState('video'); // 'video' | 'chat' | 'whiteboard'
+
   const [showDiagnosticsPanel, setShowDiagnosticsPanel] = useState(false);
   const [redoStack, setRedoStack] = useState([]);
   const [showChatSidebar, setShowChatSidebar] = useState(false);
@@ -105,6 +117,16 @@ export default function RoomScreen() {
       subscription?.remove();
     };
   }, []);
+
+  // Auto switch layout based on presentation state
+  React.useEffect(() => {
+    if (presentationState) {
+      setLayoutMode('presentation');
+    } else if (layoutMode === 'presentation') {
+      setLayoutMode('grid');
+    }
+  }, [presentationState]);
+
   const [messageText, setMessageText] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -296,6 +318,7 @@ export default function RoomScreen() {
 
   const handleDrawStart = (event) => {
     isDrawingRef.current = true;
+    broadcastWhiteboardDrawing();
     setRedoStack([]); // Clear redo stack on new drawing actions
     const { x, y } = getCoordinates(event);
     const point = `${x.toFixed(0)},${y.toFixed(0)}`;
@@ -312,6 +335,10 @@ export default function RoomScreen() {
 
   const handleDrawMove = (event) => {
     if (!isDrawingRef.current) return;
+    
+    // Group draw events to prevent spamming the socket (throttle)
+    if (Math.random() < 0.1) broadcastWhiteboardDrawing();
+
     const { x, y } = getCoordinates(event);
     const point = `${x.toFixed(0)},${y.toFixed(0)}`;
 
@@ -366,6 +393,10 @@ export default function RoomScreen() {
     
     if (layoutContext === 'focus') {
       return { flex: 1, width: '100%', height: '100%', minHeight: 0, minWidth: 0 };
+    }
+
+    if (layoutMode === 'compact') {
+      return { width: isWideScreen ? 120 : 80, height: isWideScreen ? 120 : 80, margin: 4 };
     }
     
     // For 1 tile
@@ -452,12 +483,25 @@ export default function RoomScreen() {
     );
   };
 
+  // Determine who should be the focus
+  let activeFocusId = pinnedSocketId;
+  if (!activeFocusId && layoutMode === 'speaker') {
+    activeFocusId = activeSpeakerId || 'local';
+  } else if (!activeFocusId && layoutMode === 'focus') {
+    activeFocusId = remoteKeys.length > 0 ? remoteKeys[0] : 'local';
+  }
+
   const renderGridItems = (layoutContext) => {
     const tilesToRender = [];
-    if (!isScreenSharing && (!pinnedSocketId || pinnedSocketId !== 'local')) tilesToRender.push('local');
-    remoteKeys.forEach(id => {
-      if (!pinnedSocketId || pinnedSocketId !== id) tilesToRender.push(id);
-    });
+    if (layoutContext === 'sidebar') {
+      if (activeFocusId !== 'local' && presentationState?.userId !== 'local') tilesToRender.push('local');
+      remoteKeys.forEach(id => {
+        if (id !== activeFocusId && id !== presentationState?.userId) tilesToRender.push(id);
+      });
+    } else {
+      tilesToRender.push('local');
+      remoteKeys.forEach(id => tilesToRender.push(id));
+    }
     
     const totalGridTiles = tilesToRender.length;
     return tilesToRender.map(id => {
@@ -468,7 +512,7 @@ export default function RoomScreen() {
   };
 
   const renderFeatureArea = () => {
-    if (activeTab === 'whiteboard') {
+    if (presentationState?.type === 'whiteboard') {
       return (
         <View style={{flex: 1, position: 'relative'}}>
           <View style={styles.whiteboardContainer}>
@@ -524,28 +568,31 @@ export default function RoomScreen() {
               </Svg>
             </View>
           </View>
-          <TouchableOpacity style={styles.closeFeatureOverlay} onPress={() => setActiveTab('video')}>
+          <TouchableOpacity style={styles.closeFeatureOverlay} onPress={() => toggleWhiteboardState(false)}>
             <Text style={styles.closeFeatureText}>✖ Close Whiteboard</Text>
           </TouchableOpacity>
         </View>
       );
     }
-    if (isScreenSharing) {
+    if (presentationState?.type === 'screenshare') {
+      const isMe = presentationState.userId === 'local';
       return (
         <View style={{flex: 1, position: 'relative'}}>
-          {renderLocalVideoTile(getDynamicTileStyle(1, 'focus'))}
-          <TouchableOpacity style={styles.closeFeatureOverlay} onPress={toggleScreenShare}>
-            <Text style={styles.closeFeatureText}>✖ Stop Sharing</Text>
-          </TouchableOpacity>
+          {isMe ? renderLocalVideoTile(getDynamicTileStyle(1, 'focus')) : renderVideoTile(presentationState.userId, getDynamicTileStyle(1, 'focus'))}
+          {isMe && (
+            <TouchableOpacity style={styles.closeFeatureOverlay} onPress={toggleScreenShare}>
+              <Text style={styles.closeFeatureText}>✖ Stop Sharing</Text>
+            </TouchableOpacity>
+          )}
         </View>
       );
     }
-    if (pinnedSocketId) {
+    if (activeFocusId) {
       return (
         <View style={{flex: 1, position: 'relative'}}>
-          {pinnedSocketId === 'local' 
+          {activeFocusId === 'local' 
             ? renderLocalVideoTile(getDynamicTileStyle(1, 'focus')) 
-            : renderVideoTile(pinnedSocketId, getDynamicTileStyle(1, 'focus'))}
+            : renderVideoTile(activeFocusId, getDynamicTileStyle(1, 'focus'))}
         </View>
       );
     }
@@ -650,12 +697,13 @@ export default function RoomScreen() {
     </View>
   );
 
-  const hasFeature = activeTab === 'whiteboard' || isScreenSharing || pinnedSocketId;
-  const isSplit50 = activeTab === 'whiteboard' || isScreenSharing;
+  const hasFeature = presentationState || activeFocusId;
+  const isSplit50 = presentationState;
 
   return (
     <ErrorBoundary>
       <SafeAreaView style={styles.container}>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
       {isLeaving && (
         <View style={styles.leavingOverlay}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -698,10 +746,18 @@ export default function RoomScreen() {
               </View>
             ) : (
               <View style={styles.defaultGridContainer}>
-                {participantCount === 0 && !isScreenSharing ? (
+                {participantCount === 0 && !presentationState ? (
                   renderAloneView()
                 ) : (
-                  <View style={[styles.responsiveGrid, { flexDirection: isWideScreen ? 'row' : 'column' }]}>
+                  <View style={[
+                    styles.responsiveGrid, 
+                    { 
+                      flexDirection: layoutMode === 'compact' ? 'row' : (isWideScreen ? 'row' : 'column'),
+                      flexWrap: layoutMode === 'compact' ? 'wrap' : 'nowrap',
+                      alignItems: 'stretch',
+                      justifyContent: layoutMode === 'compact' ? 'center' : 'flex-start'
+                    }
+                  ]}>
                     {renderGridItems('grid')}
                   </View>
                 )}
@@ -737,9 +793,20 @@ export default function RoomScreen() {
           <TouchableOpacity style={[styles.tabButton, activeTab === 'chat' && styles.activeTabButton]} onPress={() => setActiveTab('chat')}>
             <Text style={[styles.tabButtonText, activeTab === 'chat' && styles.activeTabButtonText]}>Chat {messages.length > 0 && `(${messages.length})`}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.tabButton, activeTab === 'whiteboard' && styles.activeTabButton]} onPress={() => setActiveTab('whiteboard')}>
-            <Text style={[styles.tabButtonText, activeTab === 'whiteboard' && styles.activeTabButtonText]}>Whiteboard</Text>
+          <TouchableOpacity style={[styles.tabButton, presentationState?.type === 'whiteboard' && styles.activeTabButton]} onPress={() => toggleWhiteboardState(presentationState?.type !== 'whiteboard')}>
+            <Text style={[styles.tabButtonText, presentationState?.type === 'whiteboard' && styles.activeTabButtonText]}>Whiteboard</Text>
           </TouchableOpacity>
+        </View>
+      )}
+
+      {showLayoutMenu && (
+        <View style={styles.layoutMenu}>
+          <Text style={styles.layoutMenuTitle}>Layout Mode</Text>
+          {['grid', 'focus', 'speaker', 'presentation', 'compact'].map(mode => (
+            <TouchableOpacity key={mode} style={[styles.layoutMenuItem, layoutMode === mode && styles.layoutMenuItemActive]} onPress={() => { setLayoutMode(mode); setShowLayoutMenu(false); }}>
+              <Text style={[styles.layoutMenuText, layoutMode === mode && styles.layoutMenuTextActive]}>{mode.charAt(0).toUpperCase() + mode.slice(1)}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       )}
 
@@ -753,9 +820,12 @@ export default function RoomScreen() {
         <TouchableOpacity style={[styles.circularButton, isScreenSharing && styles.circularButtonActive]} onPress={toggleScreenShare}>
           <Text style={styles.controlIconText}>🖥️</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={[styles.circularButton, showLayoutMenu && styles.circularButtonActive]} onPress={() => setShowLayoutMenu(!showLayoutMenu)}>
+          <Text style={styles.controlIconText}>⊞</Text>
+        </TouchableOpacity>
         {isWideScreen && (
           <>
-            <TouchableOpacity style={[styles.circularButton, activeTab === 'whiteboard' && styles.circularButtonActive]} onPress={() => setActiveTab(activeTab === 'whiteboard' ? 'video' : 'whiteboard')}>
+            <TouchableOpacity style={[styles.circularButton, presentationState?.type === 'whiteboard' && styles.circularButtonActive]} onPress={() => toggleWhiteboardState(presentationState?.type !== 'whiteboard')}>
               <Text style={styles.controlIconText}>🎨</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.circularButton, showChatSidebar && styles.circularButtonActive]} onPress={() => setShowChatSidebar(!showChatSidebar)}>
@@ -779,6 +849,60 @@ const getStyles = (COLORS) => StyleSheet.create({
     height: Platform.OS === 'web' ? '100dvh' : '100%',
     overflow: 'hidden',
   },
+  controlBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    backgroundColor: COLORS.surface,
+    borderTopWidth: 1,
+    borderColor: COLORS.border,
+    gap: 12,
+    zIndex: 50,
+  },
+  layoutMenu: {
+    position: 'absolute',
+    bottom: 90,
+    alignSelf: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 8,
+    minWidth: 150,
+    zIndex: 100,
+  },
+  layoutMenuTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: COLORS.textMuted,
+    marginBottom: 8,
+    marginLeft: 8,
+  },
+  layoutMenuItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  layoutMenuItemActive: {
+    backgroundColor: COLORS.primary,
+  },
+  layoutMenuText: {
+    color: COLORS.text,
+    fontSize: 14,
+  },
+  layoutMenuTextActive: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+  },
+
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1945,7 +2069,8 @@ const getStyles = (COLORS) => StyleSheet.create({
     flex: 1,
     flexWrap: 'wrap',
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'stretch',
+    alignContent: 'center',
     gap: 12,
     padding: 12,
     minHeight: 0,

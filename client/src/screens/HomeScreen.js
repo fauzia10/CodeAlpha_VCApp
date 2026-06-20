@@ -11,6 +11,7 @@ import {
   ScrollView,
   FlatList,
   Modal,
+  Image,
 } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { RoomContext } from '../context/RoomContext';
@@ -180,9 +181,12 @@ export default function HomeScreen({ navigation }) {
 
       {/* Top Banner Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.welcomeText}>Welcome back,</Text>
-          <Text style={styles.usernameText}>{user?.username || 'Collaborator'}</Text>
+        <View style={styles.headerTitleContainer}>
+          <Image source={require('../../assets/logo.png')} style={styles.logo} />
+          <View>
+            <Text style={styles.welcomeText}>Welcome back,</Text>
+            <Text style={styles.usernameText}>{user?.username || 'Collaborator'}</Text>
+          </View>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.themeToggleButton} onPress={toggleTheme}>
@@ -304,6 +308,16 @@ const getStyles = (COLORS) => StyleSheet.create({
     paddingBottom: 20,
     borderBottomWidth: 1,
     borderColor: COLORS.border,
+  },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  logo: {
+    width: 40,
+    height: 40,
+    resizeMode: 'contain',
   },
   welcomeText: {
     fontSize: 13,

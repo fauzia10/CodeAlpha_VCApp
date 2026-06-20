@@ -722,7 +722,9 @@ export default function RoomScreen() {
       )}
       
       <View style={styles.topBar}>
-        <View style={{ width: 60 }} />
+        <View style={styles.headerLogoContainer}>
+          <Image source={require('../../assets/icon.png')} style={styles.headerLogo} />
+        </View>
         <TouchableOpacity style={styles.roomCodeContainer} onPress={copyRoomIdToClipboard}>
           <Text style={styles.roomCodeLabel}>ROOM ID (Tap to Copy)</Text>
           <Text style={styles.roomCodeValue}>{roomId}</Text>
@@ -922,6 +924,15 @@ const getStyles = (COLORS) => StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderColor: COLORS.border,
+  },
+  headerLogoContainer: {
+    width: 60,
+    alignItems: 'flex-start',
+  },
+  headerLogo: {
+    width: 32,
+    height: 32,
+    resizeMode: 'contain',
   },
   leaveButton: {
     backgroundColor: COLORS.error,

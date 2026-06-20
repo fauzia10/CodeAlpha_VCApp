@@ -141,14 +141,32 @@ const initSocketService = (server) => {
       });
     });
 
-    // Real-time Collaborative Whiteboard Sync
+    // Real-time Collaborative Whiteboard Sync (Bulk Data)
     socket.on('draw-data-send', ({ roomId, drawData }) => {
       roomWhiteboards.set(roomId.toLowerCase(), drawData);
-      // Broadcast drawings to other participants in the room
       socket.to(roomId).emit('draw-data-receive', drawData);
     });
 
-    // Generic Room Event Broadcast (used for notifications, media states, presentation states)
+    // Explicit UI Activity Events
+    const broadcastExplicitEvent = (eventName, payload) => {
+      if (!socket.roomId) return;
+      socket.to(socket.roomId).emit(eventName, {
+        roomId: socket.roomId,
+        senderSocketId: socket.id,
+        senderName: socket.username,
+        timestamp: new Date().toISOString(),
+        ...payload
+      });
+    };
+
+    socket.on('meeting:activity', (payload) => broadcastExplicitEvent('meeting:activity', payload));
+    socket.on('chat:message', (payload) => broadcastExplicitEvent('chat:message', payload));
+    socket.on('whiteboard:opened', (payload) => broadcastExplicitEvent('whiteboard:opened', payload));
+    socket.on('whiteboard:drawing', (payload) => broadcastExplicitEvent('whiteboard:drawing', payload));
+    socket.on('screen-share:started', (payload) => broadcastExplicitEvent('screen-share:started', payload));
+    socket.on('screen-share:stopped', (payload) => broadcastExplicitEvent('screen-share:stopped', payload));
+
+    // Generic Room Event Broadcast (Legacy compatibility)
     socket.on('room-event-broadcast', ({ roomId, eventType, payload }) => {
       // Relay event to other participants in the room
       socket.to(roomId).emit('room-event-receive', {

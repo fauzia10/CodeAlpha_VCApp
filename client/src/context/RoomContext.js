@@ -390,40 +390,47 @@ export const RoomProvider = ({ children }) => {
         closePeerConnection(socketId);
       });
 
-      // 10. Socket event: Receive Chat Messages
+      // 10. Explicit Socket Events (Client Receives)
+      socket.on('chat:message', (payload) => {
+        addToast(`${payload.senderName} sent a message`, '💬', 'chat');
+      });
+
+      socket.on('whiteboard:opened', (payload) => {
+        setPresentationState({ type: 'whiteboard', userId: payload.senderSocketId, username: payload.senderName });
+        addToast(`${payload.senderName} opened the whiteboard`, '🎨', 'presentation');
+      });
+
+      socket.on('whiteboard:drawing', (payload) => {
+        addToast(`${payload.senderName} is drawing on the whiteboard`, '🖌️', null, 2500);
+      });
+
+      socket.on('screen-share:started', (payload) => {
+        setPresentationState({ type: 'screenshare', userId: payload.senderId, username: payload.senderName });
+        addToast(`${payload.senderName} is presenting`, '💻', 'presentation');
+      });
+
+      socket.on('screen-share:stopped', (payload) => {
+        setPresentationState((prev) => prev?.type === 'screenshare' ? null : prev);
+        addToast(`${payload.senderName} stopped presenting`, '💻');
+      });
+
+      socket.on('meeting:activity', (payload) => {
+        addToast(payload.message, payload.icon || 'ℹ️');
+      });
+
+      // 11. Socket event: Receive Chat Messages Data
       socket.on('chat-message-receive', (messageObject) => {
         setMessages((prev) => [...prev, messageObject]);
       });
 
-      // 11. Socket event: Receive Whiteboard Drawings
+      // 12. Socket event: Receive Whiteboard Drawings Data
       socket.on('draw-data-receive', (lines) => {
         setWhiteboardLines(lines);
       });
 
-      // 12. Socket event: Generic Room Events
+      // Legacy Generic Room Events fallback
       socket.on('room-event-receive', ({ senderId, username, eventType, payload }) => {
         switch (eventType) {
-          case 'screen-share-toggle':
-            if (payload.isActive) {
-              setPresentationState({ type: 'screenshare', userId: senderId, username });
-              addToast(`${username} started screen sharing`, '💻', 'presentation');
-            } else {
-              setPresentationState(null);
-              addToast(`${username} stopped screen sharing`, '💻');
-            }
-            break;
-          case 'whiteboard-toggle':
-            if (payload.isActive) {
-              setPresentationState({ type: 'whiteboard', userId: senderId, username });
-              addToast(`${username} opened the whiteboard`, '🎨', 'presentation');
-            } else {
-              setPresentationState(null);
-              addToast(`${username} closed the whiteboard`, '🎨');
-            }
-            break;
-          case 'whiteboard-drawing-state':
-            addToast(`${username} is drawing`, '🖌️', null, 2000);
-            break;
           case 'media-state-change':
             if (payload.type === 'audio') {
               addToast(`${username} ${payload.isMuted ? 'muted' : 'unmuted'} microphone`, payload.isMuted ? '🔇' : '🎤');
@@ -739,11 +746,7 @@ export const RoomProvider = ({ children }) => {
       addToast('You stopped presenting', '💻');
       
       if (socketRef.current && roomId) {
-        socketRef.current.emit('room-event-broadcast', {
-          roomId,
-          eventType: 'screen-share-toggle',
-          payload: { isActive: false }
-        });
+        socketRef.current.emit('screen-share:stopped', { isActive: false });
       }
     } catch (err) {
       console.error('Error stopping screen share', err);
@@ -797,11 +800,7 @@ export const RoomProvider = ({ children }) => {
       addToast('You are presenting', '💻');
 
       if (socketRef.current && roomId) {
-        socketRef.current.emit('room-event-broadcast', {
-          roomId,
-          eventType: 'screen-share-toggle',
-          payload: { isActive: true }
-        });
+        socketRef.current.emit('screen-share:started', { isActive: true });
       }
     } catch (err) {
       console.error('Error starting screen share', err);
@@ -827,6 +826,8 @@ export const RoomProvider = ({ children }) => {
           messageType: 'text',
         },
       });
+      // Also emit for toast notification to others
+      socketRef.current.emit('chat:message', { messageType: 'text' });
     }
   };
 
@@ -857,13 +858,18 @@ export const RoomProvider = ({ children }) => {
     }
   };
 
+  // Throttle ref so drawing toasts don't spam others
+  const drawingThrottleRef = useRef(null);
+
   const broadcastWhiteboardDrawing = () => {
     if (socketRef.current && roomId) {
-      socketRef.current.emit('room-event-broadcast', {
-        roomId,
-        eventType: 'whiteboard-drawing-state',
-        payload: { isDrawing: true }
-      });
+      // Throttle: only emit once every 3 seconds
+      if (!drawingThrottleRef.current) {
+        socketRef.current.emit('whiteboard:drawing', { isDrawing: true });
+        drawingThrottleRef.current = setTimeout(() => {
+          drawingThrottleRef.current = null;
+        }, 3000);
+      }
     }
   };
 
@@ -875,11 +881,15 @@ export const RoomProvider = ({ children }) => {
     }
     
     if (socketRef.current && roomId) {
-      socketRef.current.emit('room-event-broadcast', {
-        roomId,
-        eventType: 'whiteboard-toggle',
-        payload: { isActive }
-      });
+      if (isActive) {
+        socketRef.current.emit('whiteboard:opened', { isActive: true });
+      } else {
+        socketRef.current.emit('room-event-broadcast', {
+          roomId,
+          eventType: 'whiteboard-toggle',
+          payload: { isActive: false }
+        });
+      }
     }
   };
 

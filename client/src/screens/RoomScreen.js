@@ -516,6 +516,25 @@ export default function RoomScreen() {
     });
   };
 
+  // Dedicated sidebar renderer for whiteboard / screenshare presentation mode
+  // Tiles get equal flex slices of the sidebar and never scroll or crop.
+  const renderPresentationSidebar = () => {
+    const tilesToRender = [];
+    tilesToRender.push('local');
+    remoteKeys.forEach(id => {
+      if (id !== presentationState?.userId) tilesToRender.push(id);
+    });
+
+    const tileStyle = isWideScreen
+      ? { flex: 1, minHeight: 0, width: '100%', marginBottom: 8 }
+      : { flex: 1, minWidth: 0, height: '100%', marginRight: 8 };
+
+    return tilesToRender.map(id => {
+      if (id === 'local') return renderLocalVideoTile(tileStyle);
+      return renderVideoTile(id, tileStyle);
+    });
+  };
+
   const renderFeatureArea = () => {
     if (presentationState?.type === 'whiteboard') {
       return (
@@ -735,6 +754,25 @@ export default function RoomScreen() {
         </View>
       </View>
 
+      {/* Screen share presenter banner */}
+      {presentationState?.type === 'screenshare' && (
+        <View style={styles.presenterBanner}>
+          <Text style={styles.presenterBannerText}>
+            {presentationState.userId === 'local' ? '💻 You are presenting' : `💻 ${presentationState.username} is presenting`}
+          </Text>
+          {presentationState.userId !== 'local' && layoutMode !== 'presentation' && (
+            <TouchableOpacity onPress={() => setLayoutMode('presentation')} style={styles.presenterBannerButton}>
+              <Text style={styles.presenterBannerButtonText}>View</Text>
+            </TouchableOpacity>
+          )}
+          {presentationState.userId === 'local' && (
+            <TouchableOpacity onPress={toggleScreenShare} style={styles.presenterBannerButton}>
+              <Text style={styles.presenterBannerButtonText}>Stop</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       {!isTurnConfigured && (
         <View style={styles.turnWarningBanner}>
           <Text style={styles.turnWarningText}>⚠️ TURN server is not configured.</Text>
@@ -750,10 +788,12 @@ export default function RoomScreen() {
                 <View style={[styles.featurePane, isWideScreen ? (isSplit50 ? styles.flex65 : styles.flex75) : styles.flex60]}>
                   {renderFeatureArea()}
                 </View>
-                <View style={[styles.sidebarPane, isWideScreen ? (isSplit50 ? styles.flex35 : styles.flex25) : styles.flex40]}>
-                  <ScrollView horizontal={!isWideScreen} contentContainerStyle={!isWideScreen ? styles.mobileSidebarScroll : styles.desktopSidebarScroll}>
-                    {renderGridItems('sidebar')}
-                  </ScrollView>
+                {/* Dedicated presentation sidebar - no ScrollView to prevent cropping */}
+                <View style={[
+                  isWideScreen ? styles.flex35 : styles.flex40,
+                  styles.presentationSidebarPane
+                ]}>
+                  {renderPresentationSidebar()}
                 </View>
               </View>
             ) : (
@@ -2051,12 +2091,18 @@ const getStyles = (COLORS) => StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
     padding: 12,
+    overflow: 'hidden',
+    minHeight: 0,
+    minWidth: 0,
   },
   splitViewMobile: {
     flex: 1,
     flexDirection: 'column',
     gap: 8,
     padding: 8,
+    overflow: 'hidden',
+    minHeight: 0,
+    minWidth: 0,
   },
   featurePane: {
     borderRadius: 16,
@@ -2065,6 +2111,14 @@ const getStyles = (COLORS) => StyleSheet.create({
   },
   sidebarPane: {
     borderRadius: 16,
+  },
+  presentationSidebarPane: {
+    flexDirection: 'column',
+    overflow: 'hidden',
+    gap: 8,
+    padding: 8,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
   },
   flex75: { flex: 0.75, minHeight: 0, minWidth: 0 },
   flex65: { flex: 0.65, minHeight: 0, minWidth: 0 },
@@ -2143,5 +2197,34 @@ const getStyles = (COLORS) => StyleSheet.create({
     borderLeftWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.surface,
+  },
+  presenterBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1a1a2e',
+    borderBottomWidth: 2,
+    borderColor: '#E989A6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    zIndex: 200,
+  },
+  presenterBannerText: {
+    color: '#F7B6C8',
+    fontSize: 14,
+    fontWeight: '700',
+    flex: 1,
+  },
+  presenterBannerButton: {
+    backgroundColor: '#E989A6',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginLeft: 12,
+  },
+  presenterBannerButtonText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 12,
   },
 });

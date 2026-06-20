@@ -365,21 +365,26 @@ export default function RoomScreen() {
     }
     
     if (layoutContext === 'focus') {
-      return { flex: 1, width: '100%', height: '100%' };
+      return { flex: 1, width: '100%', height: '100%', minHeight: 0, minWidth: 0 };
     }
     
+    // For 1 tile
+    if (totalTiles === 1) return { flex: 1, width: '100%', height: '100%', minHeight: 0, minWidth: 0 };
+    
+    // For exactly 2 tiles, let flexbox handle it to ensure exactly 50% split
+    if (totalTiles === 2) {
+      return { flex: 1, minHeight: 0, minWidth: 0 };
+    }
+    
+    // For 3+ tiles
     if (!isWideScreen) {
-      if (totalTiles === 1) return { width: '100%', height: '100%' };
-      if (totalTiles === 2) return { width: '100%', height: '48%' };
-      if (totalTiles === 3) return { width: '100%', height: '32%' };
-      return { width: '48%', height: 200 };
+      if (totalTiles === 3) return { width: '100%', height: '32%', minHeight: 0, minWidth: 0 };
+      return { width: '48%', height: '48%', minHeight: 0, minWidth: 0 };
     }
     
-    if (totalTiles === 1) return { width: '100%', height: '100%' };
-    if (totalTiles === 2) return { width: '48%', aspectRatio: 1, maxHeight: '100%' };
-    if (totalTiles <= 4) return { width: '48%', height: '48%' };
-    if (totalTiles <= 6) return { width: '31%', height: '48%' };
-    return { width: '23%', height: '31%' };
+    if (totalTiles <= 4) return { width: '48%', height: '48%', minHeight: 0, minWidth: 0 };
+    if (totalTiles <= 6) return { width: '32%', height: '48%', minHeight: 0, minWidth: 0 };
+    return { width: '24%', height: '32%', minHeight: 0, minWidth: 0 };
   };
 
   const renderVideoTile = (socketId, dynamicStyle) => {
@@ -682,10 +687,10 @@ export default function RoomScreen() {
           <View style={styles.mainViewContainer}>
             {hasFeature ? (
               <View style={isWideScreen ? styles.splitViewDesktop : styles.splitViewMobile}>
-                <View style={[styles.featurePane, isWideScreen ? (isSplit50 ? styles.flex50 : styles.flex75) : styles.flex60]}>
+                <View style={[styles.featurePane, isWideScreen ? (isSplit50 ? styles.flex65 : styles.flex75) : styles.flex60]}>
                   {renderFeatureArea()}
                 </View>
-                <View style={[styles.sidebarPane, isWideScreen ? (isSplit50 ? styles.flex50 : styles.flex25) : styles.flex40]}>
+                <View style={[styles.sidebarPane, isWideScreen ? (isSplit50 ? styles.flex35 : styles.flex25) : styles.flex40]}>
                   <ScrollView horizontal={!isWideScreen} contentContainerStyle={!isWideScreen ? styles.mobileSidebarScroll : styles.desktopSidebarScroll}>
                     {renderGridItems('sidebar')}
                   </ScrollView>
@@ -696,9 +701,9 @@ export default function RoomScreen() {
                 {participantCount === 0 && !isScreenSharing ? (
                   renderAloneView()
                 ) : (
-                  <ScrollView contentContainerStyle={styles.responsiveGrid}>
+                  <View style={[styles.responsiveGrid, { flexDirection: isWideScreen ? 'row' : 'column' }]}>
                     {renderGridItems('grid')}
-                  </ScrollView>
+                  </View>
                 )}
               </View>
             )}
@@ -771,6 +776,8 @@ const getStyles = (COLORS) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+    height: Platform.OS === 'web' ? '100dvh' : '100%',
+    overflow: 'hidden',
   },
   topBar: {
     flexDirection: 'row',
@@ -827,6 +834,8 @@ const getStyles = (COLORS) => StyleSheet.create({
   },
   mainContent: {
     flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
   },
   videoContainer: {
     flex: 1,
@@ -1911,11 +1920,13 @@ const getStyles = (COLORS) => StyleSheet.create({
   sidebarPane: {
     borderRadius: 16,
   },
-  flex75: { flex: 0.75 },
-  flex60: { flex: 0.60 },
-  flex50: { flex: 0.50 },
-  flex40: { flex: 0.40 },
-  flex25: { flex: 0.25 },
+  flex75: { flex: 0.75, minHeight: 0, minWidth: 0 },
+  flex65: { flex: 0.65, minHeight: 0, minWidth: 0 },
+  flex60: { flex: 0.60, minHeight: 0, minWidth: 0 },
+  flex50: { flex: 0.50, minHeight: 0, minWidth: 0 },
+  flex40: { flex: 0.40, minHeight: 0, minWidth: 0 },
+  flex35: { flex: 0.35, minHeight: 0, minWidth: 0 },
+  flex25: { flex: 0.25, minHeight: 0, minWidth: 0 },
   desktopSidebarScroll: {
     flexGrow: 1,
     alignItems: 'center',
@@ -1927,6 +1938,18 @@ const getStyles = (COLORS) => StyleSheet.create({
   },
   defaultGridContainer: {
     flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+  },
+  responsiveGrid: {
+    flex: 1,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    minHeight: 0,
+    minWidth: 0,
   },
   closeFeatureOverlay: {
     position: 'absolute',

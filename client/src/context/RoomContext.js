@@ -252,34 +252,34 @@ export const RoomProvider = ({ children }) => {
       console.log(`Received remote track stream for socket: ${targetSocketId}, track kind: ${event.track.kind}`);
       
       setRemoteStreams((prev) => {
-        const existingStream = prev[targetSocketId];
-        let newStream = null;
-        
-        if (existingStream) {
-          // Extract existing tracks and check if the new track is already present
-          const tracks = existingStream.getTracks();
-          const hasTrack = tracks.some((t) => t.id === event.track.id);
-          const updatedTracks = hasTrack ? tracks : [...tracks, event.track];
-          
-          // Create a brand new MediaStream object to force React and the browser's video element to re-initialize the source
-          newStream = new MediaStream(updatedTracks);
-        } else {
-          // If no stream exists yet, create one
-          if (event.streams && event.streams[0]) {
-            newStream = new MediaStream(event.streams[0].getTracks());
-          } else if (event.track) {
-            newStream = new MediaStream([event.track]);
-          }
+        // 1. If the WebRTC stack provided a native-backed stream, use it directly
+        if (event.streams && event.streams[0]) {
+          return {
+            ...prev,
+            [targetSocketId]: wrapMediaStream(event.streams[0]),
+          };
         }
         
-        if (newStream) {
+        // 2. Fallback: Add track to existing stream, avoiding new MediaStream constructor
+        const existingStream = prev[targetSocketId];
+        if (existingStream) {
+          const hasTrack = existingStream.getTracks().some((t) => t.id === event.track.id);
+          if (!hasTrack) {
+            existingStream.addTrack(event.track);
+          }
+          return {
+            ...prev,
+            [targetSocketId]: wrapMediaStream(existingStream),
+          };
+        } else {
+          // Create a new stream and add the track
+          const newStream = new MediaStream();
+          newStream.addTrack(event.track);
           return {
             ...prev,
             [targetSocketId]: wrapMediaStream(newStream),
           };
         }
-        
-        return prev;
       });
     };
 

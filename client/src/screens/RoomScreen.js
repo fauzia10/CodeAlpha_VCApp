@@ -332,7 +332,33 @@ export default function RoomScreen() {
   const remoteKeys = Object.keys(remoteStreams);
   const participantCount = remoteKeys.length;
 
-  const renderVideoTile = (socketId, isPinnedView = false) => {
+  
+  const getDynamicTileStyle = (totalTiles, layoutContext) => {
+    if (layoutContext === 'sidebar') {
+      return isWideScreen 
+        ? { width: '100%', height: 160, marginBottom: 12 } 
+        : { width: 140, height: 180, marginRight: 12 };
+    }
+    
+    if (layoutContext === 'focus') {
+      return { flex: 1, width: '100%', height: '100%' };
+    }
+    
+    if (!isWideScreen) {
+      if (totalTiles === 1) return { width: '100%', height: '100%' };
+      if (totalTiles === 2) return { width: '100%', height: '48%' };
+      if (totalTiles === 3) return { width: '100%', height: '32%' };
+      return { width: '48%', height: 200 };
+    }
+    
+    if (totalTiles === 1) return { width: '100%', height: '100%' };
+    if (totalTiles === 2) return { width: '48%', aspectRatio: 1, maxHeight: '100%' };
+    if (totalTiles <= 4) return { width: '48%', height: '48%' };
+    if (totalTiles <= 6) return { width: '31%', height: '48%' };
+    return { width: '23%', height: '31%' };
+  };
+
+  const renderVideoTile = (socketId, dynamicStyle) => {
     const stream = remoteStreams[socketId];
     const peerInfo = participants.find((p) => p.socketId === socketId);
     const username = peerInfo ? peerInfo.username : 'Participant';
@@ -344,13 +370,7 @@ export default function RoomScreen() {
     if (peerStatus === 'Connecting') statusColor = '#f59e0b';
     
     return (
-      <View
-        key={socketId}
-        style={[
-          styles.remoteVideoTile,
-          isPinnedView ? styles.pinnedTile : styles.gridTile,
-        ]}
-      >
+      <View key={socketId} style={[styles.remoteVideoTile, dynamicStyle]}>
         <View style={styles.videoLabelContainer}>
           <Text style={styles.videoLabel}>{username}</Text>
           <Text style={[styles.videoStatusText, { color: statusColor }]}>• {peerStatus}</Text>
@@ -381,22 +401,15 @@ export default function RoomScreen() {
     );
   };
 
-  const renderLocalVideoTile = (isPinnedView = false, isFloating = true) => {
+  const renderLocalVideoTile = (dynamicStyle) => {
     return (
-      <View
-        style={[
-          styles.remoteVideoTile,
-          isPinnedView 
-            ? styles.pinnedTile 
-            : (isFloating ? styles.localVideoTile : styles.gridTile),
-        ]}
-      >
-        <Text style={isPinnedView ? styles.videoLabel : styles.localVideoLabel}>You</Text>
+      <View style={[styles.remoteVideoTile, dynamicStyle]}>
+        <Text style={styles.localVideoLabel}>You</Text>
         <TouchableOpacity
-          style={isPinnedView ? styles.pinButton : (isFloating ? styles.pinButtonSmall : styles.pinButton)}
+          style={styles.pinButton}
           onPress={() => setPinnedSocketId(pinnedSocketId === 'local' ? null : 'local')}
         >
-          <Text style={isPinnedView ? styles.pinButtonText : (isFloating ? styles.pinButtonTextSmall : styles.pinButtonText)}>
+          <Text style={styles.pinButtonText}>
             {pinnedSocketId === 'local' ? '📌 Unpin' : '📌 Pin'}
           </Text>
         </TouchableOpacity>
@@ -409,147 +422,125 @@ export default function RoomScreen() {
             muted={true}
           />
         ) : (
-          <View style={isPinnedView ? styles.videoAvatar : (isFloating ? styles.videoAvatarSmall : styles.videoAvatar)}>
-            <Text style={isPinnedView ? styles.avatarText : (isFloating ? styles.avatarTextSmall : styles.avatarText)}>Y</Text>
+          <View style={styles.videoAvatar}>
+            <Text style={styles.avatarText}>Y</Text>
           </View>
         )}
       </View>
     );
   };
 
-  const renderVideoView = () => (
-    <View style={styles.videoContainer}>
-      {participantCount === 0 ? (
-        // Large full-screen view of self when alone in the room, with centered waiting overlay
-        <View style={styles.aloneContainer}>
-          {/* Main Full-Screen Self Video */}
-          <View style={styles.aloneSelfVideoContainer}>
-            {localStream && !isVideoMuted ? (
-              <RTCView
-                streamURL={localStream.toURL()}
-                style={styles.rtcStreamView}
-                objectFit="cover"
-                mirror={true}
-                muted={true}
-              />
-            ) : (
-              <View style={styles.videoAvatar}>
-                <Text style={styles.avatarText}>Y</Text>
-              </View>
-            )}
-          </View>
-          
-          {/* Centered Waiting Overlay Card */}
-          <View style={styles.waitingOverlayCard}>
-            <View style={styles.waitingIconCircle}>
-              <Text style={styles.waitingIconText}>👤</Text>
-            </View>
-            <Text style={styles.waitingTitle}>Waiting for others to join</Text>
-            <Text style={styles.waitingDesc}>
-              Share this unique Room ID code with participants so they can join the session.
-            </Text>
-            <TouchableOpacity style={styles.copyButton} onPress={copyRoomIdToClipboard}>
-              <Text style={styles.copyButtonText}>Copy Room Code</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : pinnedSocketId ? (
-        // Pinned layout active
-        <View style={styles.pinnedStageContainer}>
-          <View style={{ flex: 1 }}>
-            {pinnedSocketId === 'local' ? renderLocalVideoTile(true) : renderVideoTile(pinnedSocketId, true)}
-          </View>
-          
-          <ScrollView
-            horizontal
-            style={styles.thumbnailScrollView}
-            contentContainerStyle={styles.thumbnailRow}
-            showsHorizontalScrollIndicator={false}
-          >
-            {/* Show local in thumbnail row if not pinned */}
-            {pinnedSocketId !== 'local' && (
-              <View style={styles.thumbnailContainer}>
-                <Text style={styles.thumbnailLabel}>You</Text>
-                <TouchableOpacity
-                  style={styles.pinButtonSmall}
-                  onPress={() => setPinnedSocketId('local')}
-                >
-                  <Text style={styles.pinButtonTextSmall}>📌</Text>
-                </TouchableOpacity>
-                {localStream && !isVideoMuted ? (
-                  <RTCView
-                    streamURL={localStream.toURL()}
-                    style={styles.rtcStreamView}
-                    objectFit="cover"
-                    mirror={true}
-                    muted={true}
-                  />
-                ) : (
-                  <View style={styles.videoAvatarSmall}>
-                    <Text style={styles.avatarTextSmall}>Y</Text>
-                  </View>
-                )}
-              </View>
-            )}
-            
-            {/* Show other remote in thumbnail row if not pinned */}
-            {remoteKeys.filter(id => id !== pinnedSocketId).map(id => {
-              const username = participants.find(p => p.socketId === id)?.username || 'Participant';
-              const peerStatus = getPeerStatusText(id);
-              let statusColor = '#e2e8f0';
-              if (peerStatus === 'Connected directly') statusColor = '#22c55e';
-              if (peerStatus === 'Connected through TURN relay') statusColor = '#3b82f6';
-              if (peerStatus === 'Connection failed') statusColor = '#ef4444';
-              if (peerStatus === 'Connecting') statusColor = '#f59e0b';
-              return (
-                <View key={id} style={styles.thumbnailContainer}>
-                  <View style={styles.thumbnailLabelContainer}>
-                    <Text style={styles.thumbnailLabel} numberOfLines={1}>{username}</Text>
-                    <Text style={[styles.thumbnailStatusBullet, { color: statusColor }]}>●</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.pinButtonSmall}
-                    onPress={() => setPinnedSocketId(id)}
-                  >
-                    <Text style={styles.pinButtonTextSmall}>📌</Text>
-                  </TouchableOpacity>
-                  {remoteStreams[id] ? (
-                    <RTCView
-                      streamURL={remoteStreams[id].toURL()}
-                      style={styles.rtcStreamView}
-                      objectFit="cover"
-                      muted={false}
+  const renderGridItems = (layoutContext) => {
+    const tilesToRender = [];
+    if (!isScreenSharing && (!pinnedSocketId || pinnedSocketId !== 'local')) tilesToRender.push('local');
+    remoteKeys.forEach(id => {
+      if (!pinnedSocketId || pinnedSocketId !== id) tilesToRender.push(id);
+    });
+    
+    const totalGridTiles = tilesToRender.length;
+    return tilesToRender.map(id => {
+      const dynamicStyle = getDynamicTileStyle(totalGridTiles, layoutContext);
+      if (id === 'local') return renderLocalVideoTile(dynamicStyle);
+      return renderVideoTile(id, dynamicStyle);
+    });
+  };
+
+  const renderFeatureArea = () => {
+    if (activeTab === 'whiteboard') {
+      return (
+        <View style={{flex: 1, position: 'relative'}}>
+          <View style={styles.whiteboardContainer}>
+            <View style={styles.whiteboardToolbar}>
+              <View style={styles.toolbarRow}>
+                <Text style={styles.toolbarLabel}>Color:</Text>
+                <View style={[styles.colorPalette, { flexWrap: 'wrap' }]}>
+                  {['#1e293b', '#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'].map((color) => (
+                    <TouchableOpacity
+                      key={color}
+                      style={[styles.colorCircle, { backgroundColor: color }, strokeColor === color && !isEraser && styles.selectedToolBorder]}
+                      onPress={() => { setStrokeColor(color); setIsEraser(false); }}
                     />
-                  ) : (
-                    <View style={styles.videoAvatarSmall}>
-                      <Text style={styles.avatarTextSmall}>
-                        {username.substring(0, 2).toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
+                  ))}
                 </View>
-              );
-            })}
-          </ScrollView>
+              </View>
+              <View style={styles.toolbarRow}>
+                <Text style={styles.toolbarLabel}>Brush Size:</Text>
+                <View style={styles.thicknessContainer}>
+                  {[3, 6, 12].map((size) => (
+                    <TouchableOpacity
+                      key={size}
+                      style={[styles.thicknessButton, strokeThickness === size && !isEraser && styles.activeThicknessButton]}
+                      onPress={() => { setStrokeThickness(size); setIsEraser(false); }}
+                    >
+                      <Text style={[styles.thicknessText, strokeThickness === size && !isEraser && styles.activeThicknessText]}>{size}px</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TouchableOpacity style={[styles.eraserButton, isEraser && styles.activeEraserButton]} onPress={() => setIsEraser(true)}>
+                  <Text style={[styles.eraserButtonText, isEraser && styles.activeEraserText]}>Eraser</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.clearAllButton} onPress={handleClearWhiteboard}>
+                  <Text style={styles.clearAllButtonText}>Clear All</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.canvasContainer}>
+              <Svg style={StyleSheet.absoluteFill} onTouchStart={handleDrawStart} onTouchMove={handleDrawMove} onTouchEnd={handleDrawEnd} onMouseDown={handleDrawStart} onMouseMove={handleDrawMove} onMouseUp={handleDrawEnd} onMouseLeave={handleDrawEnd}>
+                {whiteboardLines.map((line, index) => (
+                  <Polyline key={index} points={line.points.join(' ')} fill="none" stroke={line.color} strokeWidth={line.thickness} strokeLinecap="round" strokeLinejoin="round" />
+                ))}
+              </Svg>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.closeFeatureOverlay} onPress={() => setActiveTab('video')}>
+            <Text style={styles.closeFeatureText}>✖ Close Whiteboard</Text>
+          </TouchableOpacity>
         </View>
-      ) : (
-        // Standard scrollable video grid (including both local self-video and remote videos)
-        <ScrollView contentContainerStyle={styles.remoteVideoGrid}>
-          {renderLocalVideoTile(false, false)}
-          {remoteKeys.map((socketId) => renderVideoTile(socketId, false))}
-        </ScrollView>
-      )}
+      );
+    }
+    if (isScreenSharing) {
+      return (
+        <View style={{flex: 1, position: 'relative'}}>
+          {renderLocalVideoTile(getDynamicTileStyle(1, 'focus'))}
+          <TouchableOpacity style={styles.closeFeatureOverlay} onPress={toggleScreenShare}>
+            <Text style={styles.closeFeatureText}>✖ Stop Sharing</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    if (pinnedSocketId) {
+      return (
+        <View style={{flex: 1, position: 'relative'}}>
+          {pinnedSocketId === 'local' 
+            ? renderLocalVideoTile(getDynamicTileStyle(1, 'focus')) 
+            : renderVideoTile(pinnedSocketId, getDynamicTileStyle(1, 'focus'))}
+        </View>
+      );
+    }
+    return null;
+  };
+
+  const renderAloneView = () => (
+    <View style={styles.aloneContainer}>
+      <View style={styles.aloneSelfVideoContainer}>
+        {renderLocalVideoTile({ width: '100%', height: '100%', flex: 1 })}
+      </View>
+      <View style={styles.waitingOverlayCard}>
+        <View style={styles.waitingIconCircle}>
+          <Text style={styles.waitingIconText}>👤</Text>
+        </View>
+        <Text style={styles.waitingTitle}>Waiting for others to join</Text>
+        <Text style={styles.waitingDesc}>Share this unique Room ID code with participants so they can join the session.</Text>
+        <TouchableOpacity style={styles.copyButton} onPress={copyRoomIdToClipboard}>
+          <Text style={styles.copyButtonText}>Copy Room Code</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
   const renderChatView = (isSidebar = false) => (
     <View style={isSidebar ? styles.chatSidebarContainer : styles.chatContainer}>
-      <ScrollView
-        ref={chatScrollRef}
-        style={styles.chatScrollView}
-        contentContainerStyle={styles.chatMessageList}
-        onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
-      >
+      <ScrollView ref={chatScrollRef} style={styles.chatScrollView} contentContainerStyle={styles.chatMessageList} onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}>
         {messages.length === 0 ? (
           <View style={styles.emptyChatContainer}>
             <Text style={styles.emptyChatTitle}>No messages yet</Text>
@@ -559,84 +550,28 @@ export default function RoomScreen() {
           messages.map((msg, index) => {
             const isMe = msg.senderId === user?.id;
             const isFile = msg.messageType === 'file';
-            const isImage = isFile && (msg.fileMetadata?.mimeType?.startsWith('image/') || 
-                            /\.(gif|jpe?g|png|webp|bmp)$/i.test(msg.fileMetadata?.fileName || ''));
-            
+            const isImage = isFile && (msg.fileMetadata?.mimeType?.startsWith('image/') || /\.(gif|jpe?g|png|webp|bmp)$/i.test(msg.fileMetadata?.fileName || ''));
             return (
-              <View
-                key={index}
-                style={[
-                  styles.messageRow,
-                  isMe ? styles.myMessageRow : styles.otherMessageRow,
-                ]}
-              >
+              <View key={index} style={[styles.messageRow, isMe ? styles.myMessageRow : styles.otherMessageRow]}>
                 {!isMe && <Text style={styles.messageSender}>{msg.username}</Text>}
-                
                 {isImage ? (
-                  // Image / GIF Preview bubble
-                  <TouchableOpacity
-                    style={[
-                      styles.imageMessageContainer,
-                      isMe ? styles.myImageMessage : styles.otherImageMessage,
-                    ]}
-                    onPress={() => handleDownloadFile(msg.fileMetadata.downloadUrl)}
-                  >
-                    <Image
-                      source={{ 
-                        uri: msg.fileMetadata.downloadUrl.startsWith('http') 
-                          ? msg.fileMetadata.downloadUrl 
-                          : `${API_URL}${msg.fileMetadata.downloadUrl}` 
-                      }}
-                      style={styles.inlineImagePreview}
-                      resizeMode="cover"
-                    />
-                    <Text 
-                      style={[
-                        styles.imageMetaText,
-                        { color: isMe ? '#ffffff' : COLORS.text }
-                      ]} 
-                      numberOfLines={1}
-                    >
-                      {msg.fileMetadata.fileName} ({formatFileSize(msg.fileMetadata.fileSize)})
-                    </Text>
+                  <TouchableOpacity style={[styles.imageMessageContainer, isMe ? styles.myImageMessage : styles.otherImageMessage]} onPress={() => handleDownloadFile(msg.fileMetadata.downloadUrl)}>
+                    <Image source={{ uri: msg.fileMetadata.downloadUrl.startsWith('http') ? msg.fileMetadata.downloadUrl : `${API_URL}${msg.fileMetadata.downloadUrl}` }} style={styles.inlineImagePreview} resizeMode="cover" />
+                    <Text style={[styles.imageMetaText, { color: isMe ? '#ffffff' : COLORS.text }]} numberOfLines={1}>{msg.fileMetadata.fileName} ({formatFileSize(msg.fileMetadata.fileSize)})</Text>
                   </TouchableOpacity>
                 ) : isFile ? (
-                  // File bubble
-                  <TouchableOpacity
-                    style={[
-                      styles.fileBubble,
-                      isMe ? styles.myFileBubble : styles.otherFileBubble,
-                    ]}
-                    onPress={() => handleDownloadFile(msg.fileMetadata.downloadUrl)}
-                  >
-                    <View style={styles.fileIconContainer}>
-                      <Text style={styles.fileIcon}>📄</Text>
-                    </View>
+                  <TouchableOpacity style={[styles.fileBubble, isMe ? styles.myFileBubble : styles.otherFileBubble]} onPress={() => handleDownloadFile(msg.fileMetadata.downloadUrl)}>
+                    <View style={styles.fileIconContainer}><Text style={styles.fileIcon}>📄</Text></View>
                     <View style={styles.fileMetaContainer}>
-                      <Text style={styles.fileNameText} numberOfLines={1}>
-                        {msg.fileMetadata.fileName}
-                      </Text>
-                      <Text style={styles.fileSizeText}>
-                        {formatFileSize(msg.fileMetadata.fileSize)}
-                      </Text>
+                      <Text style={styles.fileNameText} numberOfLines={1}>{msg.fileMetadata.fileName}</Text>
+                      <Text style={styles.fileSizeText}>{formatFileSize(msg.fileMetadata.fileSize)}</Text>
                     </View>
                     <Text style={styles.fileDownloadText}>↓</Text>
                   </TouchableOpacity>
                 ) : (
-                  // Regular text message bubble
-                  <View
-                    style={[
-                      styles.messageBubble,
-                      isMe ? styles.myMessageBubble : styles.otherMessageBubble,
-                    ]}
-                  >
+                  <View style={[styles.messageBubble, isMe ? styles.myMessageBubble : styles.otherMessageBubble]}>
                     <Text style={styles.messageText}>{msg.content}</Text>
-                    <Text style={styles.messageTime}>
-                      {new Date(msg.createdAt).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </Text>
+                    <Text style={styles.messageTime}>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
                   </View>
                 )}
               </View>
@@ -644,101 +579,34 @@ export default function RoomScreen() {
           })
         )}
       </ScrollView>
-
-      {/* Chat Input & File attachment Row */}
       <View style={styles.chatInputContainer}>
-        <TouchableOpacity
-          style={styles.attachmentButton}
-          onPress={handlePickAndUploadFile}
-          disabled={isUploading}
-        >
-          {isUploading ? (
-            <ActivityIndicator color={COLORS.primary} size="small" />
-          ) : (
-            <Text style={styles.attachmentButtonText}>📎</Text>
-          )}
+        <TouchableOpacity style={styles.attachmentButton} onPress={handlePickAndUploadFile} disabled={isUploading}>
+          {isUploading ? <ActivityIndicator color={COLORS.primary} size="small" /> : <Text style={styles.attachmentButtonText}>📎</Text>}
         </TouchableOpacity>
-
-        {/* Emoji Selector Toggle Button */}
-        <TouchableOpacity
-          style={styles.attachmentButton}
-          onPress={() => setShowEmojiPanel(!showEmojiPanel)}
-        >
+        <TouchableOpacity style={styles.attachmentButton} onPress={() => setShowEmojiPanel(!showEmojiPanel)}>
           <Text style={styles.attachmentButtonText}>😀</Text>
         </TouchableOpacity>
-        
-        <TextInput
-          style={styles.chatInput}
-          placeholder="Type your message..."
-          placeholderTextColor={COLORS.textMuted}
-          value={messageText}
-          onChangeText={setMessageText}
-          multiline
-          maxHeight={100}
-          onKeyPress={(e) => {
-            if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) {
-              e.preventDefault();
-              handleSendMessage();
-            }
-          }}
-        />
-        
-        <TouchableOpacity style={styles.chatSendButton} onPress={handleSendMessage}>
-          <Text style={styles.chatSendButtonText}>Send</Text>
-        </TouchableOpacity>
+        <TextInput style={styles.chatInput} placeholder="Type your message..." placeholderTextColor={COLORS.textMuted} value={messageText} onChangeText={setMessageText} multiline maxHeight={100} onKeyPress={(e) => { if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) { e.preventDefault(); handleSendMessage(); } }} />
+        <TouchableOpacity style={styles.chatSendButton} onPress={handleSendMessage}><Text style={styles.chatSendButtonText}>Send</Text></TouchableOpacity>
       </View>
-
-      {/* Emoji & GIF Reaction Panels */}
       {showEmojiPanel && (
         <View style={styles.emojiPanelContainer}>
-          {/* Header tabs: Emojis / GIFs */}
           <View style={styles.panelTabs}>
-            <TouchableOpacity
-              style={[styles.panelTabButton, panelTab === 'emoji' && styles.activePanelTab]}
-              onPress={() => setPanelTab('emoji')}
-            >
-              <Text style={styles.panelTabText}>Emojis 😀</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.panelTabButton, panelTab === 'gif' && styles.activePanelTab]}
-              onPress={() => setPanelTab('gif')}
-            >
-              <Text style={styles.panelTabText}>GIFs 🎬</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={[styles.panelTabButton, panelTab === 'emoji' && styles.activePanelTab]} onPress={() => setPanelTab('emoji')}><Text style={styles.panelTabText}>Emojis 😀</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.panelTabButton, panelTab === 'gif' && styles.activePanelTab]} onPress={() => setPanelTab('gif')}><Text style={styles.panelTabText}>GIFs 🎬</Text></TouchableOpacity>
           </View>
-          
           {panelTab === 'emoji' ? (
             <ScrollView style={styles.emojiScrollGrid}>
               <View style={styles.emojiGrid}>
                 {['❤️', '😂', '👍', '🔥', '🎉', '😮', '😢', '👏', '🙌', '✨', '💡', '🚀', '💯', '🤔', '❌', '✅', '👋', '😍', '😎', '😜', '🙏', '🎂', '🥳', '👀'].map((emoji) => (
-                  <TouchableOpacity
-                    key={emoji}
-                    style={styles.emojiGridItem}
-                    onPress={() => setMessageText((prev) => prev + emoji)}
-                  >
-                    <Text style={styles.emojiText}>{emoji}</Text>
-                  </TouchableOpacity>
+                  <TouchableOpacity key={emoji} style={styles.emojiGridItem} onPress={() => setMessageText((prev) => prev + emoji)}><Text style={styles.emojiText}>{emoji}</Text></TouchableOpacity>
                 ))}
               </View>
             </ScrollView>
           ) : (
             <ScrollView horizontal style={styles.gifScrollRow} showsHorizontalScrollIndicator={false}>
-              {[
-                { name: 'Thumbs Up', url: 'https://media.giphy.com/media/tIeCLkB8geYtW/giphy.gif' },
-                { name: 'Laughing', url: 'https://media.giphy.com/media/10yXFkBJ0Mwmo0/giphy.gif' },
-                { name: 'Applause', url: 'https://media.giphy.com/media/l3q2XhfQ8oCkm1K76/giphy.gif' },
-                { name: 'Shocked', url: 'https://media.giphy.com/media/26ufdipQqU2lhNA4g/giphy.gif' },
-                { name: 'Success', url: 'https://media.giphy.com/media/3o7qE1YN7aBOFPRw8E/giphy.gif' },
-                { name: 'Dance', url: 'https://media.giphy.com/media/l41YhWbJboLC1RPAk/giphy.gif' },
-                { name: 'Sad', url: 'https://media.giphy.com/media/9Y5BbDSkSTiY8/giphy.gif' },
-                { name: 'Mind Blown', url: 'https://media.giphy.com/media/l0IxYWDltdHEqujnO/giphy.gif' },
-                { name: 'Celebrate', url: 'https://media.giphy.com/media/kyLYXonQYYyYDI5akh/giphy.gif' }
-              ].map((gif, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={styles.gifItemContainer}
-                  onPress={() => handleSendGif(gif.url)}
-                >
+              {[ { name: 'Thumbs Up', url: 'https://media.giphy.com/media/tIeCLkB8geYtW/giphy.gif' }, { name: 'Laughing', url: 'https://media.giphy.com/media/10yXFkBJ0Mwmo0/giphy.gif' }, { name: 'Applause', url: 'https://media.giphy.com/media/l3q2XhfQ8oCkm1K76/giphy.gif' }, { name: 'Shocked', url: 'https://media.giphy.com/media/26ufdipQqU2lhNA4g/giphy.gif' }, { name: 'Success', url: 'https://media.giphy.com/media/3o7qE1YN7aBOFPRw8E/giphy.gif' }, { name: 'Dance', url: 'https://media.giphy.com/media/l41YhWbJboLC1RPAk/giphy.gif' }, { name: 'Sad', url: 'https://media.giphy.com/media/9Y5BbDSkSTiY8/giphy.gif' }, { name: 'Mind Blown', url: 'https://media.giphy.com/media/l0IxYWDltdHEqujnO/giphy.gif' }, { name: 'Celebrate', url: 'https://media.giphy.com/media/kyLYXonQYYyYDI5akh/giphy.gif' } ].map((gif, idx) => (
+                <TouchableOpacity key={idx} style={styles.gifItemContainer} onPress={() => handleSendGif(gif.url)}>
                   <Image source={{ uri: gif.url }} style={styles.gifThumbnail} />
                   <Text style={styles.gifLabel}>{gif.name}</Text>
                 </TouchableOpacity>
@@ -750,352 +618,8 @@ export default function RoomScreen() {
     </View>
   );
 
-  const colorPaletteStyle = [styles.colorPalette, { flexWrap: 'wrap' }];
-
-  const renderWhiteboardView = () => (
-    <View style={styles.whiteboardContainer}>
-      {/* If mobile, show a small floating video tray at the top */}
-      {!isWideScreen && participantCount > 0 && (
-        <ScrollView
-          horizontal
-          style={styles.floatingVideoTray}
-          contentContainerStyle={styles.floatingVideoTrayContent}
-          showsHorizontalScrollIndicator={false}
-        >
-          {/* Local Stream */}
-          <View style={styles.trayVideoTile}>
-            <Text style={styles.trayVideoLabel}>You</Text>
-            {localStream && !isVideoMuted ? (
-              <RTCView
-                streamURL={localStream.toURL()}
-                style={styles.rtcStreamView}
-                objectFit="cover"
-                mirror={true}
-                muted={true}
-              />
-            ) : (
-              <Text style={styles.trayAvatarText}>Y</Text>
-            )}
-          </View>
-          
-          {/* Remote Streams */}
-          {remoteKeys.map((socketId) => {
-            const stream = remoteStreams[socketId];
-            const peerInfo = participants.find((p) => p.socketId === socketId);
-            const username = peerInfo ? peerInfo.username : 'Participant';
-            
-            return (
-              <View key={socketId} style={styles.trayVideoTile}>
-                <Text style={styles.trayVideoLabel}>{username}</Text>
-                {stream ? (
-                  <RTCView
-                    streamURL={stream.toURL()}
-                    style={styles.rtcStreamView}
-                    objectFit="cover"
-                    muted={false}
-                  />
-                ) : (
-                  <Text style={styles.trayAvatarText}>
-                    {username.substring(0, 1).toUpperCase()}
-                  </Text>
-                )}
-              </View>
-            );
-          })}
-        </ScrollView>
-      )}
-
-      {/* Whiteboard Toolbar */}
-      <View style={styles.whiteboardToolbar}>
-        {/* Color Selections */}
-        <View style={styles.toolbarRow}>
-          <Text style={styles.toolbarLabel}>Color:</Text>
-          <View style={colorPaletteStyle}>
-            {['#1e293b', '#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'].map((color) => (
-              <TouchableOpacity
-                key={color}
-                style={[
-                  styles.colorCircle,
-                  { backgroundColor: color },
-                  strokeColor === color && !isEraser && styles.selectedToolBorder,
-                ]}
-                onPress={() => {
-                  setStrokeColor(color);
-                  setIsEraser(false);
-                }}
-              />
-            ))}
-          </View>
-        </View>
-
-        {/* Tool modes: Brush thickness, Eraser, Clear */}
-        <View style={styles.toolbarRow}>
-          <Text style={styles.toolbarLabel}>Brush Size:</Text>
-          <View style={styles.thicknessContainer}>
-            {[3, 6, 12].map((size) => (
-              <TouchableOpacity
-                key={size}
-                style={[
-                  styles.thicknessButton,
-                  strokeThickness === size && !isEraser && styles.activeThicknessButton,
-                ]}
-                onPress={() => {
-                  setStrokeThickness(size);
-                  setIsEraser(false);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.thicknessText,
-                    strokeThickness === size && !isEraser && styles.activeThicknessText,
-                  ]}
-                >
-                  {size === 3 ? 'Thin' : size === 6 ? 'Med' : 'Thick'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Eraser */}
-          <TouchableOpacity
-            style={[styles.eraserButton, isEraser && styles.activeEraserButton]}
-            onPress={() => setIsEraser(true)}
-          >
-            <Text style={[styles.eraserButtonText, isEraser && styles.activeEraserText]}>
-              🧽 Eraser
-            </Text>
-          </TouchableOpacity>
-
-          {/* Undo/Redo Buttons */}
-          <TouchableOpacity
-            style={[styles.actionIconButton, whiteboardLines.length === 0 && styles.disabledButton]}
-            onPress={handleUndo}
-            disabled={whiteboardLines.length === 0}
-          >
-            <Text style={styles.actionIconText}>↩️ Undo</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionIconButton, redoStack.length === 0 && styles.disabledButton]}
-            onPress={handleRedo}
-            disabled={redoStack.length === 0}
-          >
-            <Text style={styles.actionIconText}>↪️ Redo</Text>
-          </TouchableOpacity>
-
-          {/* Clear All */}
-          <TouchableOpacity style={styles.clearAllButton} onPress={handleClearWhiteboard}>
-            <Text style={styles.clearAllButtonText}>🗑️ Clear All</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Drawing Canvas Container */}
-      <View
-        ref={canvasRef}
-        style={styles.canvasContainer}
-        onTouchStart={handleDrawStart}
-        onTouchMove={handleDrawMove}
-        onTouchEnd={handleDrawEnd}
-        onMouseDown={Platform.OS === 'web' ? handleDrawStart : undefined}
-        onMouseMove={Platform.OS === 'web' ? handleDrawMove : undefined}
-        onMouseUp={Platform.OS === 'web' ? handleDrawEnd : undefined}
-        onMouseLeave={Platform.OS === 'web' ? handleDrawEnd : undefined}
-      >
-        <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
-          {whiteboardLines.map((line, index) => (
-            <Polyline
-              key={index}
-              points={line.points.join(' ')}
-              stroke={line.color}
-              strokeWidth={line.thickness}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          ))}
-        </Svg>
-      </View>
-    </View>
-  );
-
-  const renderCompactVideoList = () => (
-    <ScrollView style={styles.compactVideoList} contentContainerStyle={styles.compactVideoListContent}>
-      <Text style={styles.compactListTitle}>Live Call ({participantCount + 1})</Text>
-      
-      {/* Local Video Stream */}
-      <View style={styles.compactVideoTile}>
-        <Text style={styles.compactVideoLabel}>You</Text>
-        {localStream && !isVideoMuted ? (
-          <RTCView
-            streamURL={localStream.toURL()}
-            style={styles.rtcStreamView}
-            objectFit="cover"
-            mirror={true}
-            muted={true}
-          />
-        ) : (
-          <View style={styles.videoAvatarSmall}>
-            <Text style={styles.avatarTextSmall}>Y</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Remote Video Streams */}
-      {remoteKeys.map((socketId) => {
-        const stream = remoteStreams[socketId];
-        const peerInfo = participants.find((p) => p.socketId === socketId);
-        const username = peerInfo ? peerInfo.username : 'Participant';
-        const peerStatus = getPeerStatusText(socketId);
-        let statusColor = '#e2e8f0';
-        if (peerStatus === 'Connected directly') statusColor = '#22c55e';
-        if (peerStatus === 'Connected through TURN relay') statusColor = '#3b82f6';
-        if (peerStatus === 'Connection failed') statusColor = '#ef4444';
-        if (peerStatus === 'Connecting') statusColor = '#f59e0b';
-        
-        return (
-          <View key={socketId} style={styles.compactVideoTile}>
-            <View style={styles.compactLabelContainer}>
-              <Text style={styles.compactVideoLabel}>{username}</Text>
-              <Text style={[styles.compactVideoStatus, { color: statusColor }]}>●</Text>
-            </View>
-            {stream ? (
-              <RTCView
-                streamURL={stream.toURL()}
-                style={styles.rtcStreamView}
-                objectFit="cover"
-                muted={false}
-              />
-            ) : (
-              <View style={styles.videoAvatarSmall}>
-                <Text style={styles.avatarTextSmall}>
-                  {username.substring(0, 2).toUpperCase()}
-                </Text>
-              </View>
-            )}
-          </View>
-        );
-      })}
-    </ScrollView>
-  );
-
-  const getPeerStatusText = (socketId) => {
-    const peerDiag = diagnostics.peers[socketId];
-    if (!peerDiag) return 'Connecting';
-    
-    const state = peerDiag.connectionState;
-    const iceState = peerDiag.iceConnectionState;
-    
-    if (state === 'failed' || iceState === 'failed') {
-      return 'Connection failed';
-    }
-    
-    if (state === 'connected' || iceState === 'connected' || iceState === 'completed') {
-      return peerDiag.turnUsed ? 'Connected through TURN relay' : 'Connected directly';
-    }
-    
-    return 'Connecting';
-  };
-
-  const isDevMode = __DEV__ || process.env.NODE_ENV !== 'production';
-
-  const renderDiagnosticsPanel = () => {
-    if (!isDevMode) return null;
-
-    const peerIds = Object.keys(diagnostics.peers);
-
-    return (
-      <View style={styles.diagnosticsWrapper}>
-        <TouchableOpacity
-          style={styles.diagnosticsHeader}
-          onPress={() => setShowDiagnosticsPanel(!showDiagnosticsPanel)}
-        >
-          <Text style={styles.diagnosticsTitle}>⚙️ WebRTC Diagnostics (Dev Mode)</Text>
-          <Text style={styles.diagnosticsToggleText}>
-            {showDiagnosticsPanel ? 'Collapse ▲' : 'Expand ▼'}
-          </Text>
-        </TouchableOpacity>
-
-        {showDiagnosticsPanel && (
-          <ScrollView style={styles.diagnosticsBody} nestedScrollEnabled>
-            <View style={styles.diagRow}>
-              <Text style={styles.diagLabel}>Socket Status:</Text>
-              <Text style={[
-                styles.diagVal,
-                diagnostics.socketStatus === 'connected' ? styles.statusSuccess : styles.statusDanger
-              ]}>
-                {diagnostics.socketStatus.toUpperCase()}
-              </Text>
-            </View>
-
-            <View style={styles.diagRow}>
-              <Text style={styles.diagLabel}>Local Stream:</Text>
-              <Text style={styles.diagVal}>{diagnostics.localStreamStatus}</Text>
-            </View>
-
-            <Text style={styles.diagSectionHeader}>Active Peer Connections ({peerIds.length})</Text>
-            {peerIds.length === 0 ? (
-              <Text style={styles.diagValEmpty}>No active peer connections.</Text>
-            ) : (
-              peerIds.map((id) => {
-                const peerDiag = diagnostics.peers[id] || {};
-                const peerInfo = participants.find((p) => p.socketId === id);
-                const name = peerInfo ? peerInfo.username : `Peer ${id.substring(0, 4)}`;
-
-                return (
-                  <View key={id} style={styles.peerDiagCard}>
-                    <Text style={styles.peerDiagName}>{name}</Text>
-                    <View style={styles.diagSubRow}>
-                      <Text style={styles.diagSubLabel}>State:</Text>
-                      <Text style={styles.diagVal}>{peerDiag.connectionState || 'new'}</Text>
-                    </View>
-                    <View style={styles.diagSubRow}>
-                      <Text style={styles.diagSubLabel}>ICE State:</Text>
-                      <Text style={styles.diagVal}>{peerDiag.iceConnectionState || 'new'}</Text>
-                    </View>
-                    <View style={styles.diagSubRow}>
-                      <Text style={styles.diagSubLabel}>Local Candidate:</Text>
-                      <Text style={styles.diagVal}>{peerDiag.localCandidateType || 'pending...'}</Text>
-                    </View>
-                    <View style={styles.diagSubRow}>
-                      <Text style={styles.diagSubLabel}>Remote Candidate:</Text>
-                      <Text style={styles.diagVal}>{peerDiag.remoteCandidateType || 'pending...'}</Text>
-                    </View>
-                    <View style={styles.diagSubRow}>
-                      <Text style={styles.diagSubLabel}>TURN Relay:</Text>
-                      <Text style={[
-                        styles.diagVal,
-                        peerDiag.turnUsed ? styles.statusSuccess : styles.statusInfo
-                      ]}>
-                        {peerDiag.turnUsed ? 'YES' : 'NO'}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })
-            )}
-
-            <View style={styles.diagSectionHeaderWithAction}>
-              <Text style={styles.diagSectionHeader}>WebRTC Errors ({diagnostics.errors.length})</Text>
-              {diagnostics.errors.length > 0 && (
-                <TouchableOpacity onPress={clearDiagnosticsErrors}>
-                  <Text style={styles.diagClearText}>Clear</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {diagnostics.errors.length === 0 ? (
-              <Text style={styles.diagValEmpty}>No errors detected.</Text>
-            ) : (
-              diagnostics.errors.map((err, idx) => (
-                <Text key={idx} style={styles.diagErrorText}>⚠️ {err}</Text>
-              ))
-            )}
-          </ScrollView>
-        )}
-      </View>
-    );
-  };
+  const hasFeature = activeTab === 'whiteboard' || isScreenSharing || pinnedSocketId;
+  const isSplit50 = activeTab === 'whiteboard' || isScreenSharing;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -1105,20 +629,16 @@ export default function RoomScreen() {
           <Text style={styles.leavingText}>Summarizing meeting with Gemini AI...</Text>
         </View>
       )}
-      {/* Top Info Header */}
+      
       <View style={styles.topBar}>
         <View style={{ width: 60 }} />
-
         <TouchableOpacity style={styles.roomCodeContainer} onPress={copyRoomIdToClipboard}>
           <Text style={styles.roomCodeLabel}>ROOM ID (Tap to Copy)</Text>
           <Text style={styles.roomCodeValue}>{roomId}</Text>
         </TouchableOpacity>
-
         <View style={styles.statusBadge}>
           <View style={styles.activeDot} />
-          <Text style={styles.statusText}>
-            {participantCount + 1} {participantCount === 0 ? 'User' : 'Users'}
-          </Text>
+          <Text style={styles.statusText}>{participantCount + 1} {participantCount === 0 ? 'User' : 'Users'}</Text>
         </View>
       </View>
 
@@ -1128,122 +648,93 @@ export default function RoomScreen() {
         </View>
       )}
 
-      {/* Main Container Area */}
       <View style={styles.mainContent}>
-        {isWideScreen ? (
-          <View style={styles.wideContentContainer}>
-            <View style={styles.mainViewContainer}>
-              {activeTab === 'whiteboard' ? (
-                <View style={styles.dualWhiteboardContainer}>
-                  <View style={{ flex: 1 }}>{renderWhiteboardView()}</View>
-                  {renderCompactVideoList()}
+        <View style={isWideScreen ? styles.wideContentContainer : styles.mobileContentContainer}>
+          
+          <View style={styles.mainViewContainer}>
+            {hasFeature ? (
+              <View style={isWideScreen ? styles.splitViewDesktop : styles.splitViewMobile}>
+                <View style={[styles.featurePane, isWideScreen ? (isSplit50 ? styles.flex50 : styles.flex75) : styles.flex60]}>
+                  {renderFeatureArea()}
                 </View>
-              ) : (
-                renderVideoView()
-              )}
-            </View>
-            {showChatSidebar && renderChatView(true)}
+                <View style={[styles.sidebarPane, isWideScreen ? (isSplit50 ? styles.flex50 : styles.flex25) : styles.flex40]}>
+                  <ScrollView horizontal={!isWideScreen} contentContainerStyle={!isWideScreen ? styles.mobileSidebarScroll : styles.desktopSidebarScroll}>
+                    {renderGridItems('sidebar')}
+                  </ScrollView>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.defaultGridContainer}>
+                {participantCount === 0 && !isScreenSharing ? (
+                  renderAloneView()
+                ) : (
+                  <ScrollView contentContainerStyle={styles.responsiveGrid}>
+                    {renderGridItems('grid')}
+                  </ScrollView>
+                )}
+              </View>
+            )}
           </View>
-        ) : (
-          <>
-            {activeTab === 'video' && renderVideoView()}
-            {activeTab === 'chat' && renderChatView(false)}
-            {activeTab === 'whiteboard' && renderWhiteboardView()}
-          </>
-        )}
+
+          {isWideScreen && showChatSidebar && (
+            <View style={styles.chatSidebarContainer}>
+              {renderChatView(true)}
+            </View>
+          )}
+        </View>
       </View>
 
-      {/* Mode Navigation Bar (Mobile only) */}
+      {!isWideScreen && activeTab === 'chat' && (
+         <View style={styles.mobileChatOverlay}>
+           <View style={styles.mobileChatHeader}>
+             <Text style={styles.mobileChatTitle}>Chat</Text>
+             <TouchableOpacity onPress={() => setActiveTab('video')}>
+               <Text style={styles.mobileChatClose}>Close ✖</Text>
+             </TouchableOpacity>
+           </View>
+           {renderChatView(false)}
+         </View>
+      )}
+
       {!isWideScreen && (
         <View style={styles.tabBar}>
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'video' && styles.activeTabButton]}
-            onPress={() => setActiveTab('video')}
-          >
-            <Text style={[styles.tabButtonText, activeTab === 'video' && styles.activeTabButtonText]}>
-              Video ({participantCount + 1})
-            </Text>
+          <TouchableOpacity style={[styles.tabButton, activeTab === 'video' && styles.activeTabButton]} onPress={() => setActiveTab('video')}>
+            <Text style={[styles.tabButtonText, activeTab === 'video' && styles.activeTabButtonText]}>Video ({participantCount + 1})</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'chat' && styles.activeTabButton]}
-            onPress={() => setActiveTab('chat')}
-          >
-            <Text style={[styles.tabButtonText, activeTab === 'chat' && styles.activeTabButtonText]}>
-              Chat {messages.length > 0 && `(${messages.length})`}
-            </Text>
+          <TouchableOpacity style={[styles.tabButton, activeTab === 'chat' && styles.activeTabButton]} onPress={() => setActiveTab('chat')}>
+            <Text style={[styles.tabButtonText, activeTab === 'chat' && styles.activeTabButtonText]}>Chat {messages.length > 0 && `(${messages.length})`}</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'whiteboard' && styles.activeTabButton]}
-            onPress={() => setActiveTab('whiteboard')}
-          >
-            <Text style={[styles.tabButtonText, activeTab === 'whiteboard' && styles.activeTabButtonText]}>
-              Whiteboard
-            </Text>
+          <TouchableOpacity style={[styles.tabButton, activeTab === 'whiteboard' && styles.activeTabButton]} onPress={() => setActiveTab('whiteboard')}>
+            <Text style={[styles.tabButtonText, activeTab === 'whiteboard' && styles.activeTabButtonText]}>Whiteboard</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Media Operations Bar */}
       <View style={styles.controlBar}>
-        {/* Toggle Audio */}
-        <TouchableOpacity
-          style={[styles.circularButton, isAudioMuted && styles.circularButtonMuted]}
-          onPress={toggleAudio}
-        >
-          <Text style={styles.controlIconText}>
-            {isAudioMuted ? '🔇' : '🎙️'}
-          </Text>
+        <TouchableOpacity style={[styles.circularButton, isAudioMuted && styles.circularButtonMuted]} onPress={toggleAudio}>
+          <Text style={styles.controlIconText}>{isAudioMuted ? '🔇' : '🎙️'}</Text>
         </TouchableOpacity>
-
-        {/* Toggle Video */}
-        <TouchableOpacity
-          style={[styles.circularButton, isVideoMuted && styles.circularButtonMuted]}
-          onPress={toggleVideo}
-        >
-          <Text style={styles.controlIconText}>
-            {isVideoMuted ? '📷' : '📹'}
-          </Text>
+        <TouchableOpacity style={[styles.circularButton, isVideoMuted && styles.circularButtonMuted]} onPress={toggleVideo}>
+          <Text style={styles.controlIconText}>{isVideoMuted ? '📷' : '📹'}</Text>
         </TouchableOpacity>
-
-        {/* Toggle Screen Share */}
-        <TouchableOpacity
-          style={[styles.circularButton, isScreenSharing && styles.circularButtonActive]}
-          onPress={toggleScreenShare}
-        >
+        <TouchableOpacity style={[styles.circularButton, isScreenSharing && styles.circularButtonActive]} onPress={toggleScreenShare}>
           <Text style={styles.controlIconText}>🖥️</Text>
         </TouchableOpacity>
-
-        {/* Web Sidebar Toggles */}
         {isWideScreen && (
           <>
-            <TouchableOpacity
-              style={[styles.circularButton, activeTab === 'whiteboard' && styles.circularButtonActive]}
-              onPress={() => setActiveTab(activeTab === 'whiteboard' ? 'video' : 'whiteboard')}
-            >
+            <TouchableOpacity style={[styles.circularButton, activeTab === 'whiteboard' && styles.circularButtonActive]} onPress={() => setActiveTab(activeTab === 'whiteboard' ? 'video' : 'whiteboard')}>
               <Text style={styles.controlIconText}>🎨</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.circularButton, showChatSidebar && styles.circularButtonActive]}
-              onPress={() => setShowChatSidebar(!showChatSidebar)}
-            >
+            <TouchableOpacity style={[styles.circularButton, showChatSidebar && styles.circularButtonActive]} onPress={() => setShowChatSidebar(!showChatSidebar)}>
               <Text style={styles.controlIconText}>💬</Text>
             </TouchableOpacity>
           </>
         )}
-
-        {/* WhatsApp-Style End Call Button */}
-        <TouchableOpacity
-          style={styles.endCallButton}
-          onPress={handleLeaveRoom}
-        >
+        <TouchableOpacity style={styles.endCallButton} onPress={handleLeaveRoom}>
           <Text style={styles.endCallIconText}>📞</Text>
         </TouchableOpacity>
       </View>
 
-      {/* WebRTC Diagnostics Overlay Panel */}
       {renderDiagnosticsPanel()}
     </SafeAreaView>
   );
@@ -2356,5 +1847,104 @@ const getStyles = (COLORS) => StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+
+  // New Google Meet Layout Styles
+  pinnedTileFocus: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  mobileContentContainer: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  splitViewDesktop: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 16,
+    padding: 12,
+  },
+  splitViewMobile: {
+    flex: 1,
+    flexDirection: 'column',
+    gap: 8,
+    padding: 8,
+  },
+  featurePane: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: COLORS.surface,
+  },
+  sidebarPane: {
+    borderRadius: 16,
+  },
+  flex75: { flex: 0.75 },
+  flex60: { flex: 0.60 },
+  flex50: { flex: 0.50 },
+  flex40: { flex: 0.40 },
+  flex25: { flex: 0.25 },
+  desktopSidebarScroll: {
+    flexGrow: 1,
+    alignItems: 'center',
+  },
+  mobileSidebarScroll: {
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  defaultGridContainer: {
+    flex: 1,
+  },
+  closeFeatureOverlay: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    backgroundColor: 'rgba(239, 68, 68, 0.8)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    zIndex: 999,
+  },
+  closeFeatureText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  mobileChatOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: COLORS.background,
+    zIndex: 9999,
+  },
+  mobileChatHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  mobileChatTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.text,
+  },
+  mobileChatClose: {
+    color: COLORS.error,
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  chatSidebarDesktop: {
+    width: 340,
+    borderLeftWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
   },
 });

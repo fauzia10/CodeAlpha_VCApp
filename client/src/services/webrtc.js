@@ -1,28 +1,43 @@
 import { RTCPeerConnection } from './webrtc_shims';
 
-// Standard ICE servers configuration (using public Google STUN servers and openrelay TURN/STUN for NAT/firewall traversal)
+// Dynamic ICE servers configuration (supporting both VITE_ and EXPO_PUBLIC_ prefixes)
+const turnUrl = process.env.EXPO_PUBLIC_TURN_URL || process.env.VITE_TURN_URL || '';
+const turnUsername = process.env.EXPO_PUBLIC_TURN_USERNAME || process.env.VITE_TURN_USERNAME || '';
+const turnCredential = process.env.EXPO_PUBLIC_TURN_CREDENTIAL || process.env.VITE_TURN_CREDENTIAL || '';
+
+export const isTurnConfigured = turnUrl !== '' && turnUsername !== '' && turnCredential !== '';
+
+console.log(`[WebRTC] TURN configured: ${isTurnConfigured}`);
+console.log(`[WebRTC] TURN URL count: ${isTurnConfigured ? 3 : 0}`);
+
 export const peerConnectionConfig = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:openrelay.metered.ca:80' },
-    {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'f35743f912d940b8b0508f83',
-      credential: 'YzB7dMezWkx60I9Q'
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443',
-      username: 'f35743f912d940b8b0508f83',
-      credential: 'YzB7dMezWkx60I9Q'
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-      username: 'f35743f912d940b8b0508f83',
-      credential: 'YzB7dMezWkx60I9Q'
+  get iceServers() {
+    const servers = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' }
+    ];
+    if (isTurnConfigured) {
+      servers.push(
+        {
+          urls: turnUrl,
+          username: turnUsername,
+          credential: turnCredential
+        },
+        {
+          urls: turnUrl.includes(':80') ? turnUrl.replace(':80', ':443') : turnUrl,
+          username: turnUsername,
+          credential: turnCredential
+        },
+        {
+          urls: turnUrl.includes(':80') ? turnUrl.replace(':80', ':443') + '?transport=tcp' : turnUrl,
+          username: turnUsername,
+          credential: turnCredential
+        }
+      );
     }
-  ],
+    return servers;
+  }
 };
 
 /**

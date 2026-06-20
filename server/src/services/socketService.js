@@ -10,8 +10,24 @@ const roomWhiteboards = new Map();
 const initSocketService = (server) => {
   const io = socketIo(server, {
     cors: {
-      origin: '*', // Allow connections from any origin (development)
+      origin: function (origin, callback) {
+        // Allow connections from anywhere when no origin is provided (like native mobile apps)
+        if (!origin) return callback(null, true);
+        
+        const isAllowed = 
+          origin === 'https://codealpha-vcapp-8eh5.onrender.com' ||
+          origin.endsWith('.onrender.com') ||
+          origin.startsWith('http://localhost:') ||
+          origin === 'http://10.0.2.2:5000';
+          
+        if (isAllowed) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by Socket.IO CORS'));
+        }
+      },
       methods: ['GET', 'POST'],
+      credentials: true,
     },
   });
 
@@ -82,28 +98,31 @@ const initSocketService = (server) => {
     });
 
     // WebRTC Signaling: Forward SDP Offer to target peer
-    socket.on('send-offer', ({ targetSocketId, sdp }) => {
-      console.log(`Forwarding SDP Offer from ${socket.id} to ${targetSocketId}`);
+    socket.on('send-offer', ({ senderSocketId, targetSocketId, sdp }) => {
+      const fromId = senderSocketId || socket.id;
+      console.log(`Forwarding SDP Offer from ${fromId} to ${targetSocketId}`);
       io.to(targetSocketId).emit('receive-offer', {
-        senderSocketId: socket.id,
+        senderSocketId: fromId,
         sdp,
       });
     });
 
     // WebRTC Signaling: Forward SDP Answer to target peer
-    socket.on('send-answer', ({ targetSocketId, sdp }) => {
-      console.log(`Forwarding SDP Answer from ${socket.id} to ${targetSocketId}`);
+    socket.on('send-answer', ({ senderSocketId, targetSocketId, sdp }) => {
+      const fromId = senderSocketId || socket.id;
+      console.log(`Forwarding SDP Answer from ${fromId} to ${targetSocketId}`);
       io.to(targetSocketId).emit('receive-answer', {
-        senderSocketId: socket.id,
+        senderSocketId: fromId,
         sdp,
       });
     });
 
     // WebRTC Signaling: Forward ICE Candidate to target peer
-    socket.on('send-ice-candidate', ({ targetSocketId, candidate }) => {
-      console.log(`Forwarding ICE Candidate from ${socket.id} to ${targetSocketId}`);
+    socket.on('send-ice-candidate', ({ senderSocketId, targetSocketId, candidate }) => {
+      const fromId = senderSocketId || socket.id;
+      console.log(`Forwarding ICE Candidate from ${fromId} to ${targetSocketId}`);
       io.to(targetSocketId).emit('receive-ice-candidate', {
-        senderSocketId: socket.id,
+        senderSocketId: fromId,
         candidate,
       });
     });

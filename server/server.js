@@ -31,6 +31,7 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     
     const isAllowed = 
+      origin === 'https://codealpha-vcapp-8eh5.onrender.com' ||
       origin.endsWith('.onrender.com') ||
       origin.startsWith('http://localhost:') ||
       origin === 'http://10.0.2.2:5000';

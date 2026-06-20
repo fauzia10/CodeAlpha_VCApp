@@ -45,14 +45,18 @@ export default function RoomScreen() {
     sendFileMessage,
     sendWhiteboardData,
     leaveRoom,
+    isTurnConfigured,
     setLastMeetingSummary,
     socketRef,
+    diagnostics,
+    clearDiagnosticsErrors,
   } = useContext(RoomContext);
 
   const COLORS = getColors(themeMode);
   const styles = getStyles(COLORS);
 
   const [activeTab, setActiveTab] = useState('video'); // 'video' | 'chat' | 'whiteboard'
+  const [showDiagnosticsPanel, setShowDiagnosticsPanel] = useState(false);
   const [redoStack, setRedoStack] = useState([]);
   const [showChatSidebar, setShowChatSidebar] = useState(false);
   const [isWideScreen, setIsWideScreen] = useState(Platform.OS === 'web' && Dimensions.get('window').width > 768);
@@ -326,20 +330,31 @@ export default function RoomScreen() {
   };
 
   const remoteKeys = Object.keys(remoteStreams);
-  const participantCount = remoteKeys.length;  const renderVideoTile = (socketId, isPinnedView = false) => {
+  const participantCount = remoteKeys.length;
+
+  const renderVideoTile = (socketId, isPinnedView = false) => {
     const stream = remoteStreams[socketId];
     const peerInfo = participants.find((p) => p.socketId === socketId);
     const username = peerInfo ? peerInfo.username : 'Participant';
+    const peerStatus = getPeerStatusText(socketId);
+    let statusColor = '#e2e8f0';
+    if (peerStatus === 'Connected directly') statusColor = '#22c55e';
+    if (peerStatus === 'Connected through TURN relay') statusColor = '#3b82f6';
+    if (peerStatus === 'Connection failed') statusColor = '#ef4444';
+    if (peerStatus === 'Connecting') statusColor = '#f59e0b';
     
     return (
       <View
         key={socketId}
         style={[
           styles.remoteVideoTile,
-          isPinnedView ? styles.pinnedTile : (participantCount > 1 ? styles.gridTile : styles.fullTile),
+          isPinnedView ? styles.pinnedTile : styles.gridTile,
         ]}
       >
-        <Text style={styles.videoLabel}>{username}</Text>
+        <View style={styles.videoLabelContainer}>
+          <Text style={styles.videoLabel}>{username}</Text>
+          <Text style={[styles.videoStatusText, { color: statusColor }]}>• {peerStatus}</Text>
+        </View>
         <TouchableOpacity
           style={styles.pinButton}
           onPress={() => setPinnedSocketId(pinnedSocketId === socketId ? null : socketId)}
@@ -353,6 +368,7 @@ export default function RoomScreen() {
             streamURL={stream.toURL()}
             style={styles.rtcStreamView}
             objectFit="cover"
+            muted={false}
           />
         ) : (
           <View style={styles.videoAvatar}>
@@ -372,7 +388,7 @@ export default function RoomScreen() {
           styles.remoteVideoTile,
           isPinnedView 
             ? styles.pinnedTile 
-            : (isFloating ? styles.localVideoTile : (participantCount > 0 ? styles.gridTile : styles.fullTile)),
+            : (isFloating ? styles.localVideoTile : styles.gridTile),
         ]}
       >
         <Text style={isPinnedView ? styles.videoLabel : styles.localVideoLabel}>You</Text>
@@ -479,9 +495,18 @@ export default function RoomScreen() {
             {/* Show other remote in thumbnail row if not pinned */}
             {remoteKeys.filter(id => id !== pinnedSocketId).map(id => {
               const username = participants.find(p => p.socketId === id)?.username || 'Participant';
+              const peerStatus = getPeerStatusText(id);
+              let statusColor = '#e2e8f0';
+              if (peerStatus === 'Connected directly') statusColor = '#22c55e';
+              if (peerStatus === 'Connected through TURN relay') statusColor = '#3b82f6';
+              if (peerStatus === 'Connection failed') statusColor = '#ef4444';
+              if (peerStatus === 'Connecting') statusColor = '#f59e0b';
               return (
                 <View key={id} style={styles.thumbnailContainer}>
-                  <Text style={styles.thumbnailLabel}>{username}</Text>
+                  <View style={styles.thumbnailLabelContainer}>
+                    <Text style={styles.thumbnailLabel} numberOfLines={1}>{username}</Text>
+                    <Text style={[styles.thumbnailStatusBullet, { color: statusColor }]}>●</Text>
+                  </View>
                   <TouchableOpacity
                     style={styles.pinButtonSmall}
                     onPress={() => setPinnedSocketId(id)}
@@ -493,6 +518,7 @@ export default function RoomScreen() {
                       streamURL={remoteStreams[id].toURL()}
                       style={styles.rtcStreamView}
                       objectFit="cover"
+                      muted={false}
                     />
                   ) : (
                     <View style={styles.videoAvatarSmall}>
@@ -766,6 +792,7 @@ export default function RoomScreen() {
                     streamURL={stream.toURL()}
                     style={styles.rtcStreamView}
                     objectFit="cover"
+                    muted={false}
                   />
                 ) : (
                   <Text style={styles.trayAvatarText}>
@@ -919,15 +946,25 @@ export default function RoomScreen() {
         const stream = remoteStreams[socketId];
         const peerInfo = participants.find((p) => p.socketId === socketId);
         const username = peerInfo ? peerInfo.username : 'Participant';
+        const peerStatus = getPeerStatusText(socketId);
+        let statusColor = '#e2e8f0';
+        if (peerStatus === 'Connected directly') statusColor = '#22c55e';
+        if (peerStatus === 'Connected through TURN relay') statusColor = '#3b82f6';
+        if (peerStatus === 'Connection failed') statusColor = '#ef4444';
+        if (peerStatus === 'Connecting') statusColor = '#f59e0b';
         
         return (
           <View key={socketId} style={styles.compactVideoTile}>
-            <Text style={styles.compactVideoLabel}>{username}</Text>
+            <View style={styles.compactLabelContainer}>
+              <Text style={styles.compactVideoLabel}>{username}</Text>
+              <Text style={[styles.compactVideoStatus, { color: statusColor }]}>●</Text>
+            </View>
             {stream ? (
               <RTCView
                 streamURL={stream.toURL()}
                 style={styles.rtcStreamView}
                 objectFit="cover"
+                muted={false}
               />
             ) : (
               <View style={styles.videoAvatarSmall}>
@@ -941,6 +978,124 @@ export default function RoomScreen() {
       })}
     </ScrollView>
   );
+
+  const getPeerStatusText = (socketId) => {
+    const peerDiag = diagnostics.peers[socketId];
+    if (!peerDiag) return 'Connecting';
+    
+    const state = peerDiag.connectionState;
+    const iceState = peerDiag.iceConnectionState;
+    
+    if (state === 'failed' || iceState === 'failed') {
+      return 'Connection failed';
+    }
+    
+    if (state === 'connected' || iceState === 'connected' || iceState === 'completed') {
+      return peerDiag.turnUsed ? 'Connected through TURN relay' : 'Connected directly';
+    }
+    
+    return 'Connecting';
+  };
+
+  const isDevMode = __DEV__ || process.env.NODE_ENV !== 'production';
+
+  const renderDiagnosticsPanel = () => {
+    if (!isDevMode) return null;
+
+    const peerIds = Object.keys(diagnostics.peers);
+
+    return (
+      <View style={styles.diagnosticsWrapper}>
+        <TouchableOpacity
+          style={styles.diagnosticsHeader}
+          onPress={() => setShowDiagnosticsPanel(!showDiagnosticsPanel)}
+        >
+          <Text style={styles.diagnosticsTitle}>⚙️ WebRTC Diagnostics (Dev Mode)</Text>
+          <Text style={styles.diagnosticsToggleText}>
+            {showDiagnosticsPanel ? 'Collapse ▲' : 'Expand ▼'}
+          </Text>
+        </TouchableOpacity>
+
+        {showDiagnosticsPanel && (
+          <ScrollView style={styles.diagnosticsBody} nestedScrollEnabled>
+            <View style={styles.diagRow}>
+              <Text style={styles.diagLabel}>Socket Status:</Text>
+              <Text style={[
+                styles.diagVal,
+                diagnostics.socketStatus === 'connected' ? styles.statusSuccess : styles.statusDanger
+              ]}>
+                {diagnostics.socketStatus.toUpperCase()}
+              </Text>
+            </View>
+
+            <View style={styles.diagRow}>
+              <Text style={styles.diagLabel}>Local Stream:</Text>
+              <Text style={styles.diagVal}>{diagnostics.localStreamStatus}</Text>
+            </View>
+
+            <Text style={styles.diagSectionHeader}>Active Peer Connections ({peerIds.length})</Text>
+            {peerIds.length === 0 ? (
+              <Text style={styles.diagValEmpty}>No active peer connections.</Text>
+            ) : (
+              peerIds.map((id) => {
+                const peerDiag = diagnostics.peers[id] || {};
+                const peerInfo = participants.find((p) => p.socketId === id);
+                const name = peerInfo ? peerInfo.username : `Peer ${id.substring(0, 4)}`;
+
+                return (
+                  <View key={id} style={styles.peerDiagCard}>
+                    <Text style={styles.peerDiagName}>{name}</Text>
+                    <View style={styles.diagSubRow}>
+                      <Text style={styles.diagSubLabel}>State:</Text>
+                      <Text style={styles.diagVal}>{peerDiag.connectionState || 'new'}</Text>
+                    </View>
+                    <View style={styles.diagSubRow}>
+                      <Text style={styles.diagSubLabel}>ICE State:</Text>
+                      <Text style={styles.diagVal}>{peerDiag.iceConnectionState || 'new'}</Text>
+                    </View>
+                    <View style={styles.diagSubRow}>
+                      <Text style={styles.diagSubLabel}>Local Candidate:</Text>
+                      <Text style={styles.diagVal}>{peerDiag.localCandidateType || 'pending...'}</Text>
+                    </View>
+                    <View style={styles.diagSubRow}>
+                      <Text style={styles.diagSubLabel}>Remote Candidate:</Text>
+                      <Text style={styles.diagVal}>{peerDiag.remoteCandidateType || 'pending...'}</Text>
+                    </View>
+                    <View style={styles.diagSubRow}>
+                      <Text style={styles.diagSubLabel}>TURN Relay:</Text>
+                      <Text style={[
+                        styles.diagVal,
+                        peerDiag.turnUsed ? styles.statusSuccess : styles.statusInfo
+                      ]}>
+                        {peerDiag.turnUsed ? 'YES' : 'NO'}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+
+            <View style={styles.diagSectionHeaderWithAction}>
+              <Text style={styles.diagSectionHeader}>WebRTC Errors ({diagnostics.errors.length})</Text>
+              {diagnostics.errors.length > 0 && (
+                <TouchableOpacity onPress={clearDiagnosticsErrors}>
+                  <Text style={styles.diagClearText}>Clear</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {diagnostics.errors.length === 0 ? (
+              <Text style={styles.diagValEmpty}>No errors detected.</Text>
+            ) : (
+              diagnostics.errors.map((err, idx) => (
+                <Text key={idx} style={styles.diagErrorText}>⚠️ {err}</Text>
+              ))
+            )}
+          </ScrollView>
+        )}
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -966,6 +1121,12 @@ export default function RoomScreen() {
           </Text>
         </View>
       </View>
+
+      {!isTurnConfigured && (
+        <View style={styles.turnWarningBanner}>
+          <Text style={styles.turnWarningText}>⚠️ TURN server is not configured.</Text>
+        </View>
+      )}
 
       {/* Main Container Area */}
       <View style={styles.mainContent}>
@@ -1081,6 +1242,9 @@ export default function RoomScreen() {
           <Text style={styles.endCallIconText}>📞</Text>
         </TouchableOpacity>
       </View>
+
+      {/* WebRTC Diagnostics Overlay Panel */}
+      {renderDiagnosticsPanel()}
     </SafeAreaView>
   );
 }
@@ -1201,7 +1365,8 @@ const getStyles = (COLORS) => StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    paddingBottom: 120, // Leave padding for the local preview thumbnail
+    justifyContent: 'center',
+    paddingBottom: 24,
   },
   remoteVideoTile: {
     backgroundColor: COLORS.surface,
@@ -1220,7 +1385,7 @@ const getStyles = (COLORS) => StyleSheet.create({
   },
   gridTile: {
     width: (width - 36) / 2, // Split view in a grid
-    height: 220,
+    aspectRatio: 1, // Make it a square frame
   },
   rtcStreamView: {
     flex: 1,
@@ -2004,5 +2169,192 @@ const getStyles = (COLORS) => StyleSheet.create({
     shadowRadius: 20,
     elevation: 8,
     opacity: 0.95,
+  },
+  diagnosticsWrapper: {
+    position: 'absolute',
+    bottom: 90,
+    right: 20,
+    width: width > 360 ? 320 : width - 40,
+    maxHeight: 350,
+    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
+    zIndex: 9999,
+  },
+  diagnosticsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 15,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  diagnosticsTitle: {
+    color: '#38bdf8',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  diagnosticsToggleText: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  diagnosticsBody: {
+    padding: 14,
+  },
+  diagRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  diagLabel: {
+    color: '#94a3b8',
+    fontSize: 12,
+  },
+  diagVal: {
+    color: '#f8fafc',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  diagSectionHeader: {
+    color: '#38bdf8',
+    fontSize: 11,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    marginTop: 14,
+    marginBottom: 6,
+    letterSpacing: 0.5,
+  },
+  diagSectionHeaderWithAction: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  diagClearText: {
+    color: '#ef4444',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  diagValEmpty: {
+    color: '#64748b',
+    fontSize: 11,
+    fontStyle: 'italic',
+    marginBottom: 4,
+  },
+  peerDiagCard: {
+    backgroundColor: 'rgba(30, 41, 59, 0.5)',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  peerDiagName: {
+    color: '#f8fafc',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginBottom: 6,
+  },
+  diagSubRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 2,
+  },
+  diagSubLabel: {
+    color: '#64748b',
+    fontSize: 11,
+  },
+  statusSuccess: {
+    color: '#22c55e',
+  },
+  statusDanger: {
+    color: '#ef4444',
+  },
+  statusInfo: {
+    color: '#3b82f6',
+  },
+  diagErrorText: {
+    color: '#ef4444',
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  videoLabelContainer: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 10,
+  },
+  videoStatusText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  thumbnailLabelContainer: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    zIndex: 10,
+    maxWidth: 70,
+  },
+  thumbnailStatusBullet: {
+    fontSize: 8,
+    lineHeight: 8,
+  },
+  compactLabelContainer: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    zIndex: 10,
+    maxWidth: 100,
+  },
+  compactVideoStatus: {
+    fontSize: 8,
+    lineHeight: 8,
+  },
+  turnWarningBanner: {
+    backgroundColor: '#ef4444',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  turnWarningText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });

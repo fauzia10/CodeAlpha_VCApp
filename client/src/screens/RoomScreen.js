@@ -25,6 +25,30 @@ import { getColors } from '../theme/colors';
 const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:5000';
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{flex: 1, backgroundColor: '#990000', justifyContent: 'center', alignItems: 'center', padding: 20}}>
+          <Text style={{color: 'white', fontSize: 24, fontWeight: 'bold'}}>React Crash!</Text>
+          <Text style={{color: 'white', marginTop: 10, textAlign: 'center'}}>{String(this.state.error)}</Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function RoomScreen() {
   const { user, token, themeMode } = useContext(AuthContext);
   const {
@@ -615,7 +639,8 @@ export default function RoomScreen() {
   const isSplit50 = activeTab === 'whiteboard' || isScreenSharing;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ErrorBoundary>
+      <SafeAreaView style={styles.container}>
       {isLeaving && (
         <View style={styles.leavingOverlay}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -727,8 +752,8 @@ export default function RoomScreen() {
           <Text style={styles.endCallIconText}>📞</Text>
         </TouchableOpacity>
       </View>
-
     </SafeAreaView>
+    </ErrorBoundary>
   );
 }
 

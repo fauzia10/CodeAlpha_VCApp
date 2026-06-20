@@ -362,18 +362,11 @@ export default function RoomScreen() {
     const stream = remoteStreams[socketId];
     const peerInfo = participants.find((p) => p.socketId === socketId);
     const username = peerInfo ? peerInfo.username : 'Participant';
-    const peerStatus = getPeerStatusText(socketId);
-    let statusColor = '#e2e8f0';
-    if (peerStatus === 'Connected directly') statusColor = '#22c55e';
-    if (peerStatus === 'Connected through TURN relay') statusColor = '#3b82f6';
-    if (peerStatus === 'Connection failed') statusColor = '#ef4444';
-    if (peerStatus === 'Connecting') statusColor = '#f59e0b';
     
     return (
       <View key={socketId} style={[styles.remoteVideoTile, dynamicStyle]}>
         <View style={styles.videoLabelContainer}>
           <Text style={styles.videoLabel}>{username}</Text>
-          <Text style={[styles.videoStatusText, { color: statusColor }]}>• {peerStatus}</Text>
         </View>
         <TouchableOpacity
           style={styles.pinButton}

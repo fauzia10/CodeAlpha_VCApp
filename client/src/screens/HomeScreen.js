@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,9 +9,10 @@ import {
   SafeAreaView,
   Alert,
   ScrollView,
-  FlatList,
   Modal,
   Image,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { RoomContext } from '../context/RoomContext';
@@ -23,51 +24,15 @@ export default function HomeScreen({ navigation }) {
   const { user, token, logout, themeMode, toggleTheme } = useContext(AuthContext);
   const { setRoomId, lastMeetingSummary, setLastMeetingSummary } = useContext(RoomContext);
   const COLORS = getColors(themeMode);
-  const styles = getStyles(COLORS);
+  const styles = getStyles(COLORS, themeMode);
+  const { width } = useWindowDimensions();
+  const isWide = width >= 768;
+  const isDark = themeMode === 'dark';
+
   const [targetRoomId, setTargetRoomId] = useState('');
   const [meetingTitle, setMeetingTitle] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
-  
-  const [recentMeetings, setRecentMeetings] = useState([]);
-  const [isLoadingMeetings, setIsLoadingMeetings] = useState(false);
-
-  // Fetch recent meetings on screen focus/load
-  useEffect(() => {
-    fetchRecentMeetings();
-  }, [token]);
-
-  const fetchRecentMeetings = async () => {
-    if (!token) return;
-    setIsLoadingMeetings(true);
-    try {
-      const response = await fetch(`${API_URL}/api/rooms/recent`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-      if (response.ok && Array.isArray(data)) {
-        setRecentMeetings(data);
-      } else {
-        // Fallback mock data if server does not have the endpoint yet, to maintain UX polish
-        setRecentMeetings([
-          { _id: '1', roomId: 'dev-sync-up', title: 'Daily Dev Sync', createdAt: new Date(Date.now() - 3600000).toISOString() },
-          { _id: '2', roomId: 'client-pitch', title: 'Client Pitch Presentation', createdAt: new Date(Date.now() - 86400000).toISOString() },
-        ]);
-      }
-    } catch (error) {
-      // Offline fallback mock data
-      setRecentMeetings([
-        { _id: '1', roomId: 'dev-sync-up', title: 'Daily Dev Sync (Demo)', createdAt: new Date(Date.now() - 3600000).toISOString() },
-        { _id: '2', roomId: 'client-pitch', title: 'Client Pitch (Demo)', createdAt: new Date(Date.now() - 86400000).toISOString() },
-      ]);
-    } finally {
-      setIsLoadingMeetings(false);
-    }
-  };
 
   const handleCreateMeeting = async () => {
     setIsCreating(true);
@@ -80,60 +45,38 @@ export default function HomeScreen({ navigation }) {
         },
         body: JSON.stringify({ title: meetingTitle || undefined }),
       });
-
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to create room');
-      }
-
+      if (!response.ok) throw new Error(data.message || 'Failed to create room');
       setRoomId(data.roomId);
       setMeetingTitle('');
     } catch (error) {
-      Alert.alert('Error', error.message || 'Could not connect to backend server');
+      Alert.alert('Error', error.message || 'Could not connect to server');
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleJoinMeeting = async (explicitRoomId = null) => {
-    const codeToJoin = explicitRoomId || targetRoomId;
-    if (!codeToJoin || !codeToJoin.trim()) {
+  const handleJoinMeeting = async () => {
+    if (!targetRoomId || !targetRoomId.trim()) {
       Alert.alert('Error', 'Please enter a valid room ID');
       return;
     }
-
     setIsJoining(true);
-    const cleanedRoomId = codeToJoin.trim().toLowerCase();
+    const cleaned = targetRoomId.trim().toLowerCase();
     try {
-      const response = await fetch(`${API_URL}/api/rooms/${cleanedRoomId}/join`, {
+      const response = await fetch(`${API_URL}/api/rooms/${cleaned}/join`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
-
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Invalid room ID');
-      }
-
-      setRoomId(cleanedRoomId);
+      if (!response.ok) throw new Error(data.message || 'Invalid room ID');
+      setRoomId(cleaned);
       setTargetRoomId('');
     } catch (error) {
       Alert.alert('Error', error.message || 'Could not join meeting');
     } finally {
       setIsJoining(false);
     }
-  };
-
-  const formatMeetingDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
   };
 
   return (
@@ -152,11 +95,9 @@ export default function HomeScreen({ navigation }) {
                 <Text style={styles.modalTitle}>✦ Meeting Summary ✦</Text>
                 <Text style={styles.modalSubtitle}>Generated by Gemini AI</Text>
               </View>
-              
               <ScrollView style={styles.modalScrollView}>
                 <Text style={styles.modalSectionHeader}>Overview</Text>
                 <Text style={styles.summaryText}>{lastMeetingSummary.summary}</Text>
-                
                 <Text style={styles.modalSectionHeader}>Action Items</Text>
                 {lastMeetingSummary.actionItems && lastMeetingSummary.actionItems.map((item, idx) => (
                   <View key={idx} style={styles.actionItemRow}>
@@ -165,12 +106,8 @@ export default function HomeScreen({ navigation }) {
                   </View>
                 ))}
               </ScrollView>
-              
               <View style={styles.modalButtonContainer}>
-                <TouchableOpacity
-                  style={styles.modalCloseButton}
-                  onPress={() => setLastMeetingSummary(null)}
-                >
+                <TouchableOpacity style={styles.modalCloseButton} onPress={() => setLastMeetingSummary(null)}>
                   <Text style={styles.modalCloseButtonText}>Dismiss</Text>
                 </TouchableOpacity>
               </View>
@@ -179,18 +116,19 @@ export default function HomeScreen({ navigation }) {
         </Modal>
       )}
 
-      {/* Top Banner Header */}
+      {/* ── Header ── */}
       <View style={styles.header}>
-        <View style={styles.headerTitleContainer}>
-          <Image source={require('../../assets/logo.png')} style={styles.logo} />
-          <View>
-            <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={styles.usernameText}>{user?.username || 'Collaborator'}</Text>
-          </View>
+        <View style={styles.headerBrand}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.headerLogo}
+          />
+          <Text style={styles.headerBrandName}>Syncora</Text>
         </View>
+
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.themeToggleButton} onPress={toggleTheme}>
-            <Text style={styles.themeToggleText}>{themeMode === 'dark' ? '☀️ Light' : '🌙 Dark'}</Text>
+            <Text style={styles.themeToggleText}>{isDark ? '☀️' : '🌙'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.logoutButton} onPress={logout}>
             <Text style={styles.logoutText}>Logout</Text>
@@ -198,394 +136,437 @@ export default function HomeScreen({ navigation }) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {/* Core Actions Card */}
-        <View style={styles.rowActions}>
-          {/* Host Card */}
-          <View style={[styles.actionCard, { flex: 1 }]}>
-            <Text style={styles.cardTitle}>Host Meeting</Text>
-            <Text style={styles.cardDesc}>Start a new video session instantly.</Text>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Hero Section ── */}
+        <View style={styles.heroSection}>
+          <View style={styles.logoCircle}>
+            <Image
+              source={require('../../assets/icon.png')}
+              style={styles.heroLogo}
+            />
+          </View>
+          <Text style={styles.heroTitle}>Welcome back, {user?.username || 'Collaborator'} 👋</Text>
+          <Text style={styles.heroTagline}>Meet, share, and create together.</Text>
+        </View>
+
+        {/* ── Action Cards ── */}
+        <View style={[styles.cardsRow, isWide && styles.cardsRowWide]}>
+
+          {/* Start a Meeting Card */}
+          <View style={[styles.card, styles.cardHost, isWide && styles.cardWide]}>
+            <View style={styles.cardIconCircle}>
+              <Text style={styles.cardIcon}>📹</Text>
+            </View>
+            <Text style={styles.cardTitle}>Start a Meeting</Text>
+            <Text style={styles.cardDesc}>Launch a new video room instantly and invite others.</Text>
             <TextInput
               style={styles.input}
-              placeholder="Title (optional)"
-              placeholderTextColor={COLORS.textMuted}
+              placeholder="Meeting title (optional)"
+              placeholderTextColor={isDark ? 'rgba(247,182,200,0.45)' : 'rgba(61,38,48,0.4)'}
               value={meetingTitle}
               onChangeText={setMeetingTitle}
             />
             <TouchableOpacity
-              style={styles.primaryButton}
+              style={styles.hostButton}
               onPress={handleCreateMeeting}
               disabled={isCreating}
+              activeOpacity={0.85}
             >
-              {isCreating ? (
-                <ActivityIndicator color={COLORS.white} size="small" />
-              ) : (
-                <Text style={styles.buttonText}>Host</Text>
-              )}
+              {isCreating
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.hostButtonText}>✦ Start Meeting</Text>
+              }
             </TouchableOpacity>
           </View>
 
-          {/* Join Card */}
-          <View style={[styles.actionCard, { flex: 1 }]}>
-            <Text style={styles.cardTitle}>Join Meeting</Text>
-            <Text style={styles.cardDesc}>Enter a code shared by others.</Text>
+          {/* Join with a Code Card */}
+          <View style={[styles.card, styles.cardJoin, isWide && styles.cardWide]}>
+            <View style={styles.cardIconCircle}>
+              <Text style={styles.cardIcon}>🔗</Text>
+            </View>
+            <Text style={styles.cardTitle}>Join with a Code</Text>
+            <Text style={styles.cardDesc}>Enter a room code shared by the host to join.</Text>
             <TextInput
               style={styles.input}
               placeholder="e.g. abc-defg"
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={isDark ? 'rgba(247,182,200,0.45)' : 'rgba(61,38,48,0.4)'}
               value={targetRoomId}
               onChangeText={setTargetRoomId}
               autoCapitalize="none"
               autoCorrect={false}
+              onSubmitEditing={handleJoinMeeting}
             />
             <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => handleJoinMeeting()}
+              style={styles.joinButton}
+              onPress={handleJoinMeeting}
               disabled={isJoining}
+              activeOpacity={0.85}
             >
-              {isJoining ? (
-                <ActivityIndicator color={COLORS.white} size="small" />
-              ) : (
-                <Text style={styles.buttonText}>Join</Text>
-              )}
+              {isJoining
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.joinButtonText}>→ Join Meeting</Text>
+              }
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Recent Meetings Section */}
-        <View style={styles.recentSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Meetings</Text>
-            <TouchableOpacity onPress={fetchRecentMeetings}>
-              <Text style={styles.refreshText}>Refresh</Text>
-            </TouchableOpacity>
-          </View>
-
-          {isLoadingMeetings ? (
-            <ActivityIndicator style={styles.loader} color={COLORS.primary} />
-          ) : recentMeetings.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No recent meetings found</Text>
-              <Text style={styles.emptySubtext}>Your collaboration history will show up here.</Text>
+        {/* ── Feature Strip ── */}
+        <View style={[styles.featureStrip, isWide && styles.featureStripWide]}>
+          {[
+            { icon: '🎥', label: 'HD Video' },
+            { icon: '💬', label: 'Live Chat' },
+            { icon: '🖥️', label: 'Screen Share' },
+            { icon: '🎨', label: 'Whiteboard' },
+            { icon: '🤖', label: 'AI Summary' },
+          ].map((f) => (
+            <View key={f.label} style={styles.featureChip}>
+              <Text style={styles.featureChipIcon}>{f.icon}</Text>
+              <Text style={styles.featureChipLabel}>{f.label}</Text>
             </View>
-          ) : (
-            recentMeetings.map((item) => (
-              <View key={item._id} style={styles.historyItem}>
-                <View style={styles.historyInfo}>
-                  <Text style={styles.historyTitle} numberOfLines={1}>
-                    {item.title || 'Untitled Meeting'}
-                  </Text>
-                  <Text style={styles.historyMeta}>
-                    ID: {item.roomId}  •  {formatMeetingDate(item.createdAt)}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.rejoinButton}
-                  onPress={() => handleJoinMeeting(item.roomId)}
-                >
-                  <Text style={styles.rejoinButtonText}>Rejoin</Text>
-                </TouchableOpacity>
-              </View>
-            ))
-          )}
+          ))}
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const getStyles = (COLORS) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderColor: COLORS.border,
-  },
-  headerTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  logo: {
-    width: 40,
-    height: 40,
-    resizeMode: 'contain',
-  },
-  welcomeText: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-  },
-  usernameText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
-  logoutButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.error,
-  },
-  logoutText: {
-    color: COLORS.error,
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  scrollContent: {
-    padding: 20,
-    gap: 24,
-  },
-  rowActions: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  actionCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    justifyContent: 'space-between',
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 4,
-  },
-  cardDesc: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    marginBottom: 12,
-    minHeight: 28,
-  },
-  input: {
-    backgroundColor: COLORS.surfaceLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: COLORS.text,
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  primaryButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  secondaryButton: {
-    backgroundColor: COLORS.secondary,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  recentSection: {
-    flex: 1,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.text,
-  },
-  refreshText: {
-    fontSize: 12,
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  loader: {
-    marginVertical: 20,
-  },
-  emptyContainer: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  emptyText: {
-    color: COLORS.text,
-    fontWeight: '600',
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  emptySubtext: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  historyItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 10,
-  },
-  historyInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  historyTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 4,
-  },
-  historyMeta: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-  },
-  rejoinButton: {
-    backgroundColor: COLORS.surfaceLight,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  rejoinButtonText: {
-    color: COLORS.text,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  summaryCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    width: '100%',
-    maxHeight: '80%',
-    padding: 24,
-    shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  modalHeader: {
-    alignItems: 'center',
-    marginBottom: 20,
-    borderBottomWidth: 1,
-    borderColor: COLORS.border,
-    paddingBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-    letterSpacing: 1,
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginTop: 4,
-  },
-  modalScrollView: {
-    marginBottom: 20,
-  },
-  modalSectionHeader: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  summaryText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    lineHeight: 22,
-  },
-  actionItemRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginVertical: 4,
-    paddingRight: 12,
-  },
-  actionItemBullet: {
-    color: COLORS.success,
-    fontWeight: 'bold',
-    marginRight: 10,
-    fontSize: 14,
-  },
-  actionItemText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    lineHeight: 20,
-    flex: 1,
-  },
-  modalButtonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  modalCloseButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  modalCloseButtonText: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  themeToggleButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surfaceLight,
-  },
-  themeToggleText: {
-    color: COLORS.primary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-});
+const getStyles = (COLORS, themeMode) => {
+  const isDark = themeMode === 'dark';
+
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: isDark ? '#0f0a10' : '#FFF5F8',
+    },
+
+    // ── Header ──
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 24,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderColor: isDark ? 'rgba(247,182,200,0.12)' : 'rgba(233,137,166,0.2)',
+      backgroundColor: isDark ? 'rgba(30,10,20,0.95)' : 'rgba(255,245,248,0.98)',
+    },
+    headerBrand: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    headerLogo: {
+      width: 38,
+      height: 38,
+      resizeMode: 'contain',
+      ...(isDark && {
+        shadowColor: '#F7B6C8',
+        shadowRadius: 8,
+        shadowOpacity: 0.6,
+        shadowOffset: { width: 0, height: 0 },
+      }),
+    },
+    headerBrandName: {
+      fontSize: 22,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+      color: isDark ? '#F7B6C8' : '#3D2630',
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    themeToggleButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: isDark ? 'rgba(247,182,200,0.12)' : 'rgba(233,137,166,0.15)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    themeToggleText: {
+      fontSize: 16,
+    },
+    logoutButton: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 10,
+      borderWidth: 1.5,
+      borderColor: isDark ? 'rgba(233,137,166,0.5)' : '#E989A6',
+      backgroundColor: isDark ? 'rgba(233,137,166,0.08)' : 'transparent',
+    },
+    logoutText: {
+      color: isDark ? '#F7B6C8' : '#E989A6',
+      fontWeight: '700',
+      fontSize: 12,
+    },
+
+    // ── Scroll ──
+    scrollContent: {
+      paddingHorizontal: 20,
+      paddingBottom: 40,
+      gap: 28,
+    },
+
+    // ── Hero ──
+    heroSection: {
+      alignItems: 'center',
+      paddingTop: 36,
+      paddingBottom: 8,
+    },
+    logoCircle: {
+      width: 110,
+      height: 110,
+      borderRadius: 55,
+      backgroundColor: isDark ? 'rgba(247,182,200,0.1)' : '#FCE7EF',
+      borderWidth: 2,
+      borderColor: isDark ? 'rgba(247,182,200,0.25)' : '#F7B6C8',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 20,
+      ...(isDark && {
+        shadowColor: '#F7B6C8',
+        shadowRadius: 20,
+        shadowOpacity: 0.3,
+        shadowOffset: { width: 0, height: 0 },
+      }),
+    },
+    heroLogo: {
+      width: 70,
+      height: 70,
+      resizeMode: 'contain',
+    },
+    heroTitle: {
+      fontSize: 26,
+      fontWeight: '800',
+      color: isDark ? '#F7D6E0' : '#3D2630',
+      textAlign: 'center',
+      marginBottom: 8,
+      letterSpacing: 0.3,
+    },
+    heroTagline: {
+      fontSize: 15,
+      color: isDark ? 'rgba(247,182,200,0.65)' : 'rgba(61,38,48,0.55)',
+      textAlign: 'center',
+      fontWeight: '500',
+      letterSpacing: 0.2,
+    },
+
+    // ── Cards ──
+    cardsRow: {
+      flexDirection: 'column',
+      gap: 16,
+    },
+    cardsRowWide: {
+      flexDirection: 'row',
+    },
+    card: {
+      borderRadius: 20,
+      padding: 24,
+      gap: 0,
+      borderWidth: 1,
+      ...(Platform.OS === 'web' && {
+        boxShadow: isDark
+          ? '0 4px 32px rgba(247,182,200,0.08)'
+          : '0 4px 24px rgba(233,137,166,0.12)',
+      }),
+    },
+    cardWide: {
+      flex: 1,
+    },
+    cardHost: {
+      backgroundColor: isDark ? 'rgba(247,182,200,0.06)' : '#fff',
+      borderColor: isDark ? 'rgba(247,182,200,0.15)' : 'rgba(233,137,166,0.3)',
+    },
+    cardJoin: {
+      backgroundColor: isDark ? 'rgba(233,137,166,0.06)' : '#fff',
+      borderColor: isDark ? 'rgba(233,137,166,0.2)' : 'rgba(233,137,166,0.3)',
+    },
+    cardIconCircle: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: isDark ? 'rgba(247,182,200,0.1)' : '#FCE7EF',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 14,
+    },
+    cardIcon: {
+      fontSize: 22,
+    },
+    cardTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: isDark ? '#F7D6E0' : '#3D2630',
+      marginBottom: 6,
+    },
+    cardDesc: {
+      fontSize: 13,
+      color: isDark ? 'rgba(247,182,200,0.55)' : 'rgba(61,38,48,0.55)',
+      marginBottom: 18,
+      lineHeight: 19,
+    },
+    input: {
+      backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#FFF5F8',
+      borderWidth: 1.5,
+      borderColor: isDark ? 'rgba(247,182,200,0.2)' : 'rgba(233,137,166,0.35)',
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      color: isDark ? '#F7D6E0' : '#3D2630',
+      fontSize: 14,
+      marginBottom: 14,
+    },
+    hostButton: {
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: 'center',
+      backgroundColor: '#E989A6',
+      ...(Platform.OS === 'web' && {
+        boxShadow: '0 4px 16px rgba(233,137,166,0.45)',
+      }),
+    },
+    hostButtonText: {
+      color: '#fff',
+      fontSize: 15,
+      fontWeight: '800',
+      letterSpacing: 0.3,
+    },
+    joinButton: {
+      borderRadius: 12,
+      paddingVertical: 14,
+      alignItems: 'center',
+      backgroundColor: isDark ? 'rgba(247,182,200,0.15)' : '#FCE7EF',
+      borderWidth: 2,
+      borderColor: '#E989A6',
+    },
+    joinButtonText: {
+      color: isDark ? '#F7B6C8' : '#E989A6',
+      fontSize: 15,
+      fontWeight: '800',
+      letterSpacing: 0.3,
+    },
+
+    // ── Feature Chips ──
+    featureStrip: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      justifyContent: 'center',
+    },
+    featureStripWide: {
+      justifyContent: 'center',
+    },
+    featureChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: isDark ? 'rgba(247,182,200,0.08)' : '#FCE7EF',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(247,182,200,0.15)' : 'rgba(233,137,166,0.25)',
+    },
+    featureChipIcon: {
+      fontSize: 15,
+    },
+    featureChipLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: isDark ? '#F7B6C8' : '#E989A6',
+    },
+
+    // ── Meeting Summary Modal ──
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(15, 8, 12, 0.88)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    summaryCard: {
+      backgroundColor: isDark ? '#1a0d14' : '#fff',
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(247,182,200,0.15)' : '#F7B6C8',
+      width: '100%',
+      maxWidth: 520,
+      maxHeight: '82%',
+      padding: 24,
+    },
+    modalHeader: {
+      alignItems: 'center',
+      marginBottom: 20,
+      borderBottomWidth: 1,
+      borderColor: isDark ? 'rgba(247,182,200,0.12)' : '#FCE7EF',
+      paddingBottom: 12,
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#E989A6',
+      letterSpacing: 1,
+    },
+    modalSubtitle: {
+      fontSize: 12,
+      color: isDark ? 'rgba(247,182,200,0.5)' : 'rgba(61,38,48,0.5)',
+      marginTop: 4,
+    },
+    modalScrollView: {
+      marginBottom: 20,
+    },
+    modalSectionHeader: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: isDark ? '#F7B6C8' : '#3D2630',
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
+      marginTop: 16,
+      marginBottom: 8,
+    },
+    summaryText: {
+      fontSize: 14,
+      color: isDark ? 'rgba(247,214,224,0.75)' : 'rgba(61,38,48,0.7)',
+      lineHeight: 22,
+    },
+    actionItemRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginVertical: 4,
+    },
+    actionItemBullet: {
+      color: '#E989A6',
+      fontWeight: 'bold',
+      marginRight: 10,
+      fontSize: 14,
+    },
+    actionItemText: {
+      fontSize: 14,
+      color: isDark ? 'rgba(247,214,224,0.75)' : 'rgba(61,38,48,0.7)',
+      lineHeight: 20,
+      flex: 1,
+    },
+    modalButtonContainer: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+    },
+    modalCloseButton: {
+      backgroundColor: '#E989A6',
+      borderRadius: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 36,
+      alignItems: 'center',
+    },
+    modalCloseButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      fontSize: 14,
+    },
+  });
+};

@@ -16,7 +16,7 @@
       }
     },
     "web": {
-      "favicon": "./assets/syncora-favicon-v3.png",
+      "favicon": "./assets/syncora-favicon-v5.png",
       "bundler": "metro"
     },
     "plugins": [

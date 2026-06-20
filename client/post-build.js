@@ -1,47 +1,43 @@
 #!/usr/bin/env node
 /**
- * post-build.js
+ * post-build.js — Runs after `npx expo export --platform web`
  * 
- * Runs after `npx expo export --platform web --output-dir dist`
- * 
- * Fixes that Expo Metro injects its own favicon.ico link into dist/index.html
- * and does NOT copy our versioned favicon PNG.
- * 
- * This script:
- * 1. Copies syncora-favicon-v3.png and apple-touch-icon.png to dist/
- * 2. Strips Expo's auto-injected favicon.ico link from dist/index.html
- * 3. Confirms the correct versioned link is present
+ * Fixes Expo Metro's behaviour of:
+ *  1) Auto-injecting <link rel="icon" href="/favicon.ico" /> into dist/index.html
+ *  2) Not copying our versioned favicon PNG/ICO to dist/
  */
 
 const fs = require('fs');
 const path = require('path');
 
-const distDir = path.join(__dirname, 'dist');
+const distDir   = path.join(__dirname, 'dist');
 const assetsDir = path.join(__dirname, 'assets');
+const publicDir = path.join(__dirname, 'public');
 const indexPath = path.join(distDir, 'index.html');
 
-// 1. Copy versioned favicon assets to dist root
+const V = 5; // favicon version - bump this every time you change the favicon
+
 const filesToCopy = [
-  'syncora-favicon-v3.png',
+  `syncora-favicon-v${V}.png`,
+  `syncora-favicon-v${V}.ico`,
   'apple-touch-icon.png',
-  'favicon-32x32.png',
-  'favicon-16x16.png',
 ];
 
-console.log('\n=== Syncora Post-Build Favicon Fix ===\n');
+console.log(`\n=== Syncora Post-Build Favicon Fix (v${V}) ===\n`);
 
 filesToCopy.forEach((file) => {
-  const src = path.join(assetsDir, file);
+  const src  = fs.existsSync(path.join(assetsDir, file))
+    ? path.join(assetsDir, file)
+    : path.join(publicDir, file);
   const dest = path.join(distDir, file);
   if (fs.existsSync(src)) {
     fs.copyFileSync(src, dest);
     console.log(`[COPY] ${file} -> dist/${file}`);
   } else {
-    console.warn(`[WARN] Source not found: ${src}`);
+    console.warn(`[WARN] Source not found: ${file}`);
   }
 });
 
-// 2. Patch dist/index.html
 if (!fs.existsSync(indexPath)) {
   console.error('[ERROR] dist/index.html not found. Run expo export first.');
   process.exit(1);
@@ -49,24 +45,28 @@ if (!fs.existsSync(indexPath)) {
 
 let html = fs.readFileSync(indexPath, 'utf8');
 
-// Remove Expo's injected favicon.ico link (it appears right before </head>)
-const expoFaviconPattern = /<link rel="icon" href="\/favicon\.ico" \/>/g;
-const countBefore = (html.match(expoFaviconPattern) || []).length;
-html = html.replace(expoFaviconPattern, '');
-console.log(`\n[PATCH] Removed ${countBefore} Expo-injected favicon.ico link(s)`);
+// Remove ALL old favicon.ico injections by Expo
+html = html.replace(/<link rel="icon" href="\/favicon\.ico" \/>/g, '');
+html = html.replace(/<link rel="icon" href="\/syncora-favicon-v[0-9]+\.png\?v=[0-9]+" \/>/g, '');
 
-// Verify our versioned link is present
-if (html.includes('syncora-favicon-v3.png?v=3')) {
-  console.log('[OK] Versioned favicon link confirmed: /syncora-favicon-v3.png?v=3');
+// Ensure the correct v5 favicon link is in <head> right after <title>
+const v5Links = `
+    <!-- Syncora Favicon v${V} - versioned to bust CDN cache -->
+    <link rel="icon" type="image/png" href="/syncora-favicon-v${V}.png?v=${V}" />
+    <link rel="shortcut icon" href="/syncora-favicon-v${V}.ico?v=${V}" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${V}" />
+    <meta name="application-name" content="Syncora" />
+    <meta name="theme-color" content="#FCE7EF" />`;
+
+if (!html.includes(`syncora-favicon-v${V}.png?v=${V}`)) {
+  html = html.replace('</title>', `</title>${v5Links}`);
+  console.log(`[INJECT] v${V} favicon links injected after <title>`);
 } else {
-  // Inject it right after the <title> if missing
-  html = html.replace(
-    '</title>',
-    `</title>\n    <link rel="icon" type="image/png" href="/syncora-favicon-v3.png?v=3" />\n    <link rel="shortcut icon" type="image/png" href="/syncora-favicon-v3.png?v=3" />`
-  );
-  console.log('[INJECT] Versioned favicon link was missing - injected after <title>');
+  console.log(`[OK] v${V} favicon links already present in dist/index.html`);
 }
 
 fs.writeFileSync(indexPath, html, 'utf8');
-console.log('\n[DONE] dist/index.html patched successfully.');
-console.log('\nFavicon URL on Render: https://codealpha-vcapp-8eh5.onrender.com/syncora-favicon-v3.png\n');
+console.log('\n[DONE] dist/index.html patched.\n');
+console.log(`Favicon URLs on Render:`);
+console.log(`  https://codealpha-vcapp-8eh5.onrender.com/syncora-favicon-v${V}.png`);
+console.log(`  https://codealpha-vcapp-8eh5.onrender.com/syncora-favicon-v${V}.ico\n`);

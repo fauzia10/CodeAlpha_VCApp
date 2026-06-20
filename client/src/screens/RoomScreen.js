@@ -340,12 +340,15 @@ export default function RoomScreen() {
     if (Math.random() < 0.1) broadcastWhiteboardDrawing();
 
     const { x, y } = getCoordinates(event);
+    if (isNaN(x) || isNaN(y)) return; // Prevent invalid points
+    
     const point = `${x.toFixed(0)},${y.toFixed(0)}`;
 
     const updatedLines = [...whiteboardLinesRef.current];
     if (updatedLines.length > 0) {
-      const lastLine = updatedLines[updatedLines.length - 1];
+      const lastLine = { ...updatedLines[updatedLines.length - 1] };
       lastLine.points = [...lastLine.points, point];
+      updatedLines[updatedLines.length - 1] = lastLine;
       setWhiteboardLines(updatedLines);
     }
   };
@@ -402,9 +405,11 @@ export default function RoomScreen() {
     // For 1 tile
     if (totalTiles === 1) return { flex: 1, width: '100%', height: '100%', minHeight: 0, minWidth: 0 };
     
-    // For exactly 2 tiles, let flexbox handle it to ensure exactly 50% split
+    // For exactly 2 tiles
     if (totalTiles === 2) {
-      return { flex: 1, minHeight: 0, minWidth: 0 };
+      return isWideScreen 
+        ? { width: '48%', height: '80%', minHeight: 0, minWidth: 0, alignSelf: 'center' }
+        : { width: '100%', height: '48%', minHeight: 0, minWidth: 0 };
     }
     
     // For 3+ tiles
@@ -553,6 +558,11 @@ export default function RoomScreen() {
             <View 
               ref={canvasRef}
               style={styles.canvasContainer}
+              onPointerDown={handleDrawStart}
+              onPointerMove={handleDrawMove}
+              onPointerUp={handleDrawEnd}
+              onPointerCancel={handleDrawEnd}
+              onPointerLeave={handleDrawEnd}
               onTouchStart={handleDrawStart} 
               onTouchMove={handleDrawMove} 
               onTouchEnd={handleDrawEnd} 
@@ -753,9 +763,10 @@ export default function RoomScreen() {
                     styles.responsiveGrid, 
                     { 
                       flexDirection: layoutMode === 'compact' ? 'row' : (isWideScreen ? 'row' : 'column'),
-                      flexWrap: layoutMode === 'compact' ? 'wrap' : 'nowrap',
-                      alignItems: 'stretch',
-                      justifyContent: layoutMode === 'compact' ? 'center' : 'flex-start'
+                      flexWrap: layoutMode === 'compact' || (isWideScreen && participantCount > 1) ? 'wrap' : 'nowrap',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 16
                     }
                   ]}>
                     {renderGridItems('grid')}

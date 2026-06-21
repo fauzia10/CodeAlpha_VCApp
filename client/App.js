@@ -8,7 +8,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import SplashScreen from './src/screens/SplashScreen';
 
 // Duration of the full splash display (ms)
-const SPLASH_DURATION = 2800;
+const SPLASH_DURATION = 6800; // Increased to 6.8s for the new 6s cinematic intro
 
 export default function App() {
   // Always show splash on startup (refresh resets state)

@@ -21,121 +21,129 @@ const prefersReducedMotion =
 
 export default function SplashScreen() {
   const { themeMode } = useContext(AuthContext);
-  const isDark = themeMode === 'dark';
+  
+  // Cinematic colors
+  const bgColor = '#050002'; // Deep black for cinematic feel
+  const textColor = '#FFFFFF';
+  const taglineColor = 'rgba(255, 255, 255, 0.7)';
 
   // --- Animation Values ---
-  // Background is fully opaque from the start to prevent underlying screens from flashing
+  // 1. Central Pink Glow
+  const glowOpacity = useRef(new Animated.Value(prefersReducedMotion ? 0.3 : 0)).current;
   
-  // Icon (0.3s - 1.0s)
-  const iconOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
-  const iconScale = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0.75)).current;
-  const iconFloat = useRef(new Animated.Value(0)).current;
+  // 2. Logo Assembly (simulate sweep)
+  const logoOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
+  const logoScale = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0.4)).current;
+  const logoRotate = useRef(new Animated.Value(prefersReducedMotion ? 0 : -1)).current;
+  const logoPulse = useRef(new Animated.Value(1)).current;
 
-  // Connection Dots & Collaboration Icons (1.2s - 2.0s)
-  const collabOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
+  // 3. Dots Orbit
+  const dotsOpacity = useRef(new Animated.Value(0)).current;
   const dotsRotate = useRef(new Animated.Value(0)).current;
 
-  // Text / Wordmark letters
+  // 4. Wordmark & Tagline
   const letterAnimations = useRef(
     'Syncora'.split('').map(() => new Animated.Value(prefersReducedMotion ? 1 : 0))
   ).current;
   const taglineOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
 
-  // Entire Container Scale Down (Not required in new spec, App.js handles the opacity fade at 2.8s)
-
   useEffect(() => {
     if (prefersReducedMotion) return;
 
-    // 0.3s - 1.0s: Icon fade + scale + float
-    Animated.sequence([
-      Animated.delay(300),
-      Animated.parallel([
-        Animated.timing(iconOpacity, { toValue: 1, duration: 700, useNativeDriver: true }),
-        Animated.spring(iconScale, { toValue: 1, friction: 6, tension: 40, useNativeDriver: true }),
-      ]),
-    ]).start(() => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(iconFloat, { toValue: -5, duration: 1500, useNativeDriver: true }),
-          Animated.timing(iconFloat, { toValue: 0, duration: 1500, useNativeDriver: true }),
-        ])
-      ).start();
-    });
+    // 1. Soft Pink Glow Appears (0s - 1.5s)
+    Animated.timing(glowOpacity, {
+      toValue: 0.3, // Soft ambient glow
+      duration: 1500,
+      useNativeDriver: true,
+    }).start();
 
-    // 0.8s: Letters fade up one by one
+    // 2. Logo Sweeps In (1.0s - 2.5s)
     Animated.sequence([
-      Animated.delay(800),
+      Animated.delay(1000),
+      Animated.parallel([
+        Animated.timing(logoOpacity, { toValue: 1, duration: 1500, useNativeDriver: true }),
+        Animated.spring(logoScale, { toValue: 1, friction: 6, tension: 20, useNativeDriver: true }),
+        Animated.timing(logoRotate, { toValue: 0, duration: 1500, useNativeDriver: true }),
+      ]),
+      // 3. Logo softly pulses once (2.8s - 3.4s)
+      Animated.delay(300),
+      Animated.sequence([
+        Animated.timing(logoPulse, { toValue: 1.05, duration: 300, useNativeDriver: true }),
+        Animated.timing(logoPulse, { toValue: 1, duration: 300, useNativeDriver: true }),
+      ])
+    ]).start();
+
+    // 4. Glowing Dots Orbit (2.5s - 4.5s)
+    Animated.sequence([
+      Animated.delay(2500),
+      Animated.parallel([
+        Animated.timing(dotsOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(dotsRotate, { toValue: 1, duration: 2500, useNativeDriver: true }),
+      ]),
+      Animated.timing(dotsOpacity, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]).start();
+
+    // 5. Text Reveal (4.0s - 5.0s)
+    Animated.sequence([
+      Animated.delay(4000),
       Animated.stagger(
-        70, // delay between each letter
+        80,
         letterAnimations.map((anim) =>
           Animated.timing(anim, {
             toValue: 1,
-            duration: 400,
+            duration: 600,
             useNativeDriver: true,
           })
         )
       ),
+      // 6. Tagline Reveal (5.2s)
+      Animated.delay(400),
       Animated.timing(taglineOpacity, {
         toValue: 1,
-        duration: 600,
+        duration: 800,
         useNativeDriver: true,
       })
     ]).start();
 
-    // 1.2s - 2.0s: Collaboration animations fade in then out softly
-    Animated.sequence([
-      Animated.delay(1200),
-      Animated.parallel([
-        Animated.timing(collabOpacity, { toValue: 0.8, duration: 400, useNativeDriver: true }),
-        Animated.timing(dotsRotate, { toValue: 1, duration: 1600, useNativeDriver: true }),
-      ]),
-      Animated.delay(200), // hold
-      Animated.timing(collabOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
-    ]).start();
-    
-    // 2.0s - 2.8s: Handled by App.js (fades out the entire screen component)
   }, []);
 
   const spin = dotsRotate.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0deg', '45deg'], // Subtle rotation
+    outputRange: ['0deg', '180deg'], // Orbit halfway around
   });
 
-  // Colors based on theme
-  const bgColor = isDark ? '#110A0D' : '#FFF5F8'; // Deep plum/black vs pale blush
-  const textColor = isDark ? '#F7D6E0' : '#3D2630';
-  const taglineColor = isDark ? 'rgba(247,182,200,0.7)' : 'rgba(233,137,166,1)';
+  const logoSpin = logoRotate.interpolate({
+    inputRange: [-1, 0],
+    outputRange: ['-60deg', '0deg'], // Sweep rotation
+  });
 
   return (
     <Animated.View style={[styles.root, { backgroundColor: bgColor }]}>
       
-      {/* Background soft grain / glows */}
-      <View style={[styles.bgGlow, { backgroundColor: isDark ? '#2E1521' : '#FCE7EF' }]} />
+      {/* Background Glow */}
+      <Animated.View style={[styles.bgGlow, { opacity: glowOpacity, backgroundColor: '#FF1493' }]} />
       
       <View style={styles.centerStage}>
-        {/* Collaboration Icons & Dots (orbiting the icon) */}
-        <Animated.View style={[styles.dotsContainer, { opacity: collabOpacity, transform: [{ rotate: spin }] }]}>
-          <View style={[styles.dot, styles.dot1, { backgroundColor: isDark ? '#E989A6' : '#F7B6C8' }]} />
-          <View style={[styles.dot, styles.dot2, { backgroundColor: isDark ? '#E989A6' : '#F7B6C8' }]} />
-          <View style={[styles.dot, styles.dot3, { backgroundColor: isDark ? '#E989A6' : '#F7B6C8' }]} />
-          
-          {/* Tiny Action Icons */}
-          <Text style={[styles.tinyIcon, styles.tinyIcon1]}>💬</Text>
-          <Text style={[styles.tinyIcon, styles.tinyIcon2]}>🎥</Text>
-          <Text style={[styles.tinyIcon, styles.tinyIcon3]}>✨</Text>
+        {/* Orbiting Dots */}
+        <Animated.View style={[styles.dotsContainer, { opacity: dotsOpacity, transform: [{ rotate: spin }] }]}>
+          <View style={[styles.dot, styles.dot1, { backgroundColor: '#FF6B9E', shadowColor: '#FF6B9E', shadowRadius: 12, shadowOpacity: 1 }]} />
+          <View style={[styles.dot, styles.dot2, { backgroundColor: '#FF6B9E', shadowColor: '#FF6B9E', shadowRadius: 12, shadowOpacity: 1 }]} />
         </Animated.View>
 
-        {/* Syncora Icon */}
+        {/* Syncora Logo */}
         <Animated.View
           style={[
             styles.iconWrapper,
             {
-              opacity: iconOpacity,
-              transform: [{ scale: iconScale }, { translateY: iconFloat }],
+              opacity: logoOpacity,
+              transform: [
+                { scale: logoScale },
+                { rotate: logoSpin },
+                { scale: logoPulse }
+              ],
             },
           ]}
         >
-          <View style={styles.iconGlow} />
           <Image
             source={require('../../assets/syncora-icon-only.png')}
             style={styles.iconImage}
@@ -168,7 +176,7 @@ export default function SplashScreen() {
           })}
         </View>
         <Animated.Text style={[styles.tagline, { color: taglineColor, opacity: taglineOpacity }]}>
-          Meet beautifully. Create together.
+          Connect. Coordinate. Show up.
         </Animated.Text>
       </View>
     </Animated.View>
@@ -187,8 +195,7 @@ const styles = StyleSheet.create({
     width: width * 1.5,
     height: height * 0.8,
     borderRadius: 9999,
-    opacity: 0.4,
-    ...(Platform.OS === 'web' && { filter: 'blur(100px)' }),
+    ...(Platform.OS === 'web' && { filter: 'blur(150px)' }),
   },
   centerStage: {
     width: 200,
@@ -205,42 +212,25 @@ const styles = StyleSheet.create({
   },
   dot: {
     position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   dot1: { top: 10, left: 40 },
   dot2: { bottom: 30, right: 20 },
-  dot3: { top: 70, right: 10 },
   
-  // Tiny Icons
-  tinyIcon: {
-    position: 'absolute',
-    fontSize: 16,
-  },
-  tinyIcon1: { top: 10, right: 30 },
-  tinyIcon2: { bottom: 20, left: 30 },
-  tinyIcon3: { top: 40, left: 20 },
-
   // Icon
   iconWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
   },
-  iconGlow: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(233,137,166,0.15)',
-    ...(Platform.OS === 'web' && {
-      boxShadow: '0 0 50px rgba(247,182,200,0.5)',
-    }),
-  },
   iconImage: {
     width: 120,
     height: 120,
+    ...(Platform.OS === 'web' && {
+      filter: 'drop-shadow(0px 10px 20px rgba(255, 107, 158, 0.4))',
+    }),
   },
 
   // Text

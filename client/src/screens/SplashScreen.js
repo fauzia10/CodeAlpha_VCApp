@@ -27,87 +27,69 @@ export default function SplashScreen() {
   // Background (0.0s - 0.3s)
   const bgOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
   
-  // Icon (0.2s - 0.8s)
+  // Icon (0.3s - 1.0s)
   const iconOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
-  const iconScale = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0.82)).current;
+  const iconScale = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0.75)).current;
   const iconFloat = useRef(new Animated.Value(0)).current;
 
-  // Connection Dots (0.7s - 1.3s)
-  const dotsOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
+  // Connection Dots & Collaboration Icons (1.2s - 2.0s)
+  const collabOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
   const dotsRotate = useRef(new Animated.Value(0)).current;
 
-  // Text / Wordmark (1.0s - 1.7s)
+  // Text / Wordmark (0.8s - 1.6s)
   const textOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
-  const textTranslateY = useRef(new Animated.Value(prefersReducedMotion ? 0 : 15)).current;
+  const textTranslateY = useRef(new Animated.Value(prefersReducedMotion ? 0 : 10)).current;
+  const textLetterSpacing = useRef(new Animated.Value(0)).current;
 
-  // Tiny Action Icons (1.7s - 2.3s)
-  const tinyIconsOpacity = useRef(new Animated.Value(0)).current; // they fade in then out
-
-  // Entire Container Scale Down (2.3s - 2.7s)
-  const containerScale = useRef(new Animated.Value(1)).current;
+  // Entire Container Scale Down (Not required in new spec, App.js handles the opacity fade at 2.8s)
 
   useEffect(() => {
     if (prefersReducedMotion) return;
 
-    // 0.0s - 0.3s: Background fade
+    // 0.0s - 0.4s: Background fade
     Animated.timing(bgOpacity, {
       toValue: 1,
-      duration: 300,
+      duration: 400,
       useNativeDriver: true,
     }).start();
 
-    // 0.2s - 0.8s: Icon fade + scale
+    // 0.3s - 1.0s: Icon fade + scale + float
     Animated.sequence([
-      Animated.delay(200),
+      Animated.delay(300),
       Animated.parallel([
-        Animated.timing(iconOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(iconOpacity, { toValue: 1, duration: 700, useNativeDriver: true }),
         Animated.spring(iconScale, { toValue: 1, friction: 6, tension: 40, useNativeDriver: true }),
       ]),
     ]).start(() => {
-      // Start floating motion after it appears
       Animated.loop(
         Animated.sequence([
-          Animated.timing(iconFloat, { toValue: -8, duration: 1500, useNativeDriver: true }),
+          Animated.timing(iconFloat, { toValue: -5, duration: 1500, useNativeDriver: true }),
           Animated.timing(iconFloat, { toValue: 0, duration: 1500, useNativeDriver: true }),
         ])
       ).start();
     });
 
-    // 0.7s - 1.3s: Connection Dots
+    // 0.8s - 1.6s: Wordmark & Tagline fade up + letter spacing
     Animated.sequence([
-      Animated.delay(700),
+      Animated.delay(800),
       Animated.parallel([
-        Animated.timing(dotsOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
-        Animated.timing(dotsRotate, { toValue: 1, duration: 2000, useNativeDriver: true }),
+        Animated.timing(textOpacity, { toValue: 1, duration: 800, useNativeDriver: true }),
+        Animated.timing(textTranslateY, { toValue: 0, duration: 800, useNativeDriver: true }),
       ]),
     ]).start();
 
-    // 1.0s - 1.7s: Wordmark & Tagline
+    // 1.2s - 2.0s: Collaboration animations fade in then out softly
     Animated.sequence([
-      Animated.delay(1000),
+      Animated.delay(1200),
       Animated.parallel([
-        Animated.timing(textOpacity, { toValue: 1, duration: 700, useNativeDriver: true }),
-        Animated.timing(textTranslateY, { toValue: 0, duration: 700, useNativeDriver: true }),
+        Animated.timing(collabOpacity, { toValue: 0.8, duration: 400, useNativeDriver: true }),
+        Animated.timing(dotsRotate, { toValue: 1, duration: 1600, useNativeDriver: true }),
       ]),
+      Animated.delay(200), // hold
+      Animated.timing(collabOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
     ]).start();
-
-    // 1.7s - 2.3s: Tiny joining room icons (fade in then out)
-    Animated.sequence([
-      Animated.delay(1700),
-      Animated.timing(tinyIconsOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.delay(300),
-      Animated.timing(tinyIconsOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
-    ]).start();
-
-    // 2.3s - 2.7s: Entire splash screen gently scales down
-    Animated.sequence([
-      Animated.delay(2300),
-      Animated.timing(containerScale, {
-        toValue: 0.95,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    
+    // 2.0s - 2.8s: Handled by App.js (fades out the entire screen component)
   }, []);
 
   const spin = dotsRotate.interpolate({
@@ -121,21 +103,19 @@ export default function SplashScreen() {
   const taglineColor = isDark ? 'rgba(247,182,200,0.7)' : 'rgba(233,137,166,1)';
 
   return (
-    <Animated.View style={[styles.root, { backgroundColor: bgColor, opacity: bgOpacity, transform: [{ scale: containerScale }] }]}>
+    <Animated.View style={[styles.root, { backgroundColor: bgColor, opacity: bgOpacity }]}>
       
       {/* Background soft grain / glows */}
       <View style={[styles.bgGlow, { backgroundColor: isDark ? '#2E1521' : '#FCE7EF' }]} />
       
       <View style={styles.centerStage}>
-        {/* Connection Dots (orbiting the icon) */}
-        <Animated.View style={[styles.dotsContainer, { opacity: dotsOpacity, transform: [{ rotate: spin }] }]}>
+        {/* Collaboration Icons & Dots (orbiting the icon) */}
+        <Animated.View style={[styles.dotsContainer, { opacity: collabOpacity, transform: [{ rotate: spin }] }]}>
           <View style={[styles.dot, styles.dot1, { backgroundColor: isDark ? '#E989A6' : '#F7B6C8' }]} />
           <View style={[styles.dot, styles.dot2, { backgroundColor: isDark ? '#E989A6' : '#F7B6C8' }]} />
           <View style={[styles.dot, styles.dot3, { backgroundColor: isDark ? '#E989A6' : '#F7B6C8' }]} />
-        </Animated.View>
-
-        {/* Tiny Action Icons */}
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: tinyIconsOpacity }]}>
+          
+          {/* Tiny Action Icons */}
           <Text style={[styles.tinyIcon, styles.tinyIcon1]}>💬</Text>
           <Text style={[styles.tinyIcon, styles.tinyIcon2]}>🎥</Text>
           <Text style={[styles.tinyIcon, styles.tinyIcon3]}>✨</Text>

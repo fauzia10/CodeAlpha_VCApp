@@ -10,29 +10,9 @@ import SplashScreen from './src/screens/SplashScreen';
 // Duration of the full splash display (ms)
 const SPLASH_DURATION = 2800;
 
-/**
- * Check/set the "splash shown" flag in sessionStorage (web) or app state (native).
- * Returns true if we should skip the splash this session.
- */
-const SPLASH_SESSION_KEY = 'syncora_splash_seen';
-
-function checkSplashShown() {
-  if (Platform.OS === 'web' && typeof sessionStorage !== 'undefined') {
-    return sessionStorage.getItem(SPLASH_SESSION_KEY) === '1';
-  }
-  return false; // On native, always show on cold start
-}
-
-function markSplashShown() {
-  if (Platform.OS === 'web' && typeof sessionStorage !== 'undefined') {
-    sessionStorage.setItem(SPLASH_SESSION_KEY, '1');
-  }
-}
-
 export default function App() {
-  // Skip splash if already shown this session
-  const alreadyShown = checkSplashShown();
-  const [showSplash, setShowSplash] = useState(!alreadyShown);
+  // Always show splash on startup (refresh resets state)
+  const [showSplash, setShowSplash] = useState(true);
   // Fade out the splash before unmounting
   const splashOpacity = useRef(new Animated.Value(1)).current;
 
@@ -46,9 +26,6 @@ export default function App() {
     if (!showSplash) return;
 
     const timer = setTimeout(() => {
-      // Mark as shown so future navigations within the same browser tab skip it
-      markSplashShown();
-
       // Fade the splash out over 400ms before hiding it
       Animated.timing(splashOpacity, {
         toValue: 0,

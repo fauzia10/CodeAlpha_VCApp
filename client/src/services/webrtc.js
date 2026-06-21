@@ -18,19 +18,11 @@ export const peerConnectionConfig = {
       { urls: 'stun:142.250.136.127:19302' } // IP for stun2.l.google.com
     ];
     if (isTurnConfigured) {
+      // On highly restrictive networks, UDP is dropped. We force TCP to ensure successful relay.
+      const tcpUrl = turnUrl.includes(':80') ? turnUrl.replace(':80', ':443') + '?transport=tcp' : turnUrl + '?transport=tcp';
       servers.push(
         {
-          urls: turnUrl,
-          username: turnUsername,
-          credential: turnCredential
-        },
-        {
-          urls: turnUrl.includes(':80') ? turnUrl.replace(':80', ':443') : turnUrl,
-          username: turnUsername,
-          credential: turnCredential
-        },
-        {
-          urls: turnUrl.includes(':80') ? turnUrl.replace(':80', ':443') + '?transport=tcp' : turnUrl,
+          urls: tcpUrl,
           username: turnUsername,
           credential: turnCredential
         }

@@ -592,7 +592,7 @@ export default function RoomScreen() {
               onMouseUp={handleDrawEnd} 
               onMouseLeave={handleDrawEnd}
             >
-              <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+              <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" pointerEvents="none">
                 {whiteboardLines.map((line, index) => (
                   <Polyline key={index} points={line.points.join(' ')} fill="none" stroke={line.color} strokeWidth={line.thickness} strokeLinecap="round" strokeLinejoin="round" />
                 ))}

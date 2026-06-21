@@ -996,8 +996,8 @@ const getStyles = (COLORS) => StyleSheet.create({
     alignItems: 'flex-start',
   },
   headerLogo: {
-    width: 32,
-    height: 32,
+    width: 52,
+    height: 52,
     resizeMode: 'contain',
   },
   leaveButton: {

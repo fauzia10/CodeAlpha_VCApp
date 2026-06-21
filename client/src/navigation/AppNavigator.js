@@ -4,7 +4,6 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { RoomContext } from '../context/RoomContext';
 import AuthScreen from '../screens/AuthScreen';
-import WelcomeScreen from '../screens/WelcomeScreen';
 import HomeScreen from '../screens/HomeScreen';
 import RoomScreen from '../screens/RoomScreen';
 import { COLORS } from '../theme/colors';
@@ -33,9 +32,8 @@ export default function AppNavigator() {
       }}
     >
       {token === null ? (
-        // Unauthenticated Flow: Welcome → Auth
+        // Unauthenticated Flow: Auth
         <Stack.Group>
-          <Stack.Screen name="Welcome" component={WelcomeScreen} />
           <Stack.Screen name="Auth" component={AuthScreen} />
         </Stack.Group>
       ) : roomId === null ? (

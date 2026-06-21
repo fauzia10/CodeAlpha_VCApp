@@ -36,10 +36,11 @@ export default function SplashScreen() {
   const collabOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
   const dotsRotate = useRef(new Animated.Value(0)).current;
 
-  // Text / Wordmark (0.8s - 1.6s)
-  const textOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
-  const textTranslateY = useRef(new Animated.Value(prefersReducedMotion ? 0 : 10)).current;
-  const textLetterSpacing = useRef(new Animated.Value(0)).current;
+  // Text / Wordmark letters
+  const letterAnimations = useRef(
+    'Syncora'.split('').map(() => new Animated.Value(prefersReducedMotion ? 1 : 0))
+  ).current;
+  const taglineOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
 
   // Entire Container Scale Down (Not required in new spec, App.js handles the opacity fade at 2.8s)
 
@@ -69,13 +70,24 @@ export default function SplashScreen() {
       ).start();
     });
 
-    // 0.8s - 1.6s: Wordmark & Tagline fade up + letter spacing
+    // 0.8s: Letters fade up one by one
     Animated.sequence([
       Animated.delay(800),
-      Animated.parallel([
-        Animated.timing(textOpacity, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.timing(textTranslateY, { toValue: 0, duration: 800, useNativeDriver: true }),
-      ]),
+      Animated.stagger(
+        70, // delay between each letter
+        letterAnimations.map((anim) =>
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          })
+        )
+      ),
+      Animated.timing(taglineOpacity, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      })
     ]).start();
 
     // 1.2s - 2.0s: Collaboration animations fade in then out softly
@@ -141,18 +153,32 @@ export default function SplashScreen() {
       </View>
 
       {/* Wordmark & Tagline */}
-      <Animated.View
-        style={[
-          styles.textContainer,
-          {
-            opacity: textOpacity,
-            transform: [{ translateY: textTranslateY }],
-          },
-        ]}
-      >
-        <Text style={[styles.wordmark, { color: textColor }]}>Syncora</Text>
-        <Text style={[styles.tagline, { color: taglineColor }]}>Meet beautifully. Create together.</Text>
-      </Animated.View>
+      <View style={styles.textContainer}>
+        <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+          {'Syncora'.split('').map((char, index) => {
+            const letterOpacity = letterAnimations[index];
+            const letterTranslateY = letterOpacity.interpolate({
+              inputRange: [0, 1],
+              outputRange: [15, 0],
+            });
+
+            return (
+              <Animated.Text
+                key={index}
+                style={[
+                  styles.wordmarkLetter,
+                  { color: textColor, opacity: letterOpacity, transform: [{ translateY: letterTranslateY }] }
+                ]}
+              >
+                {char}
+              </Animated.Text>
+            );
+          })}
+        </View>
+        <Animated.Text style={[styles.tagline, { color: taglineColor, opacity: taglineOpacity }]}>
+          Meet beautifully. Create together.
+        </Animated.Text>
+      </View>
     </Animated.View>
   );
 }
@@ -229,11 +255,10 @@ const styles = StyleSheet.create({
   textContainer: {
     alignItems: 'center',
   },
-  wordmark: {
+  wordmarkLetter: {
     fontSize: 42,
     fontWeight: '900',
     letterSpacing: 1.5,
-    marginBottom: 8,
   },
   tagline: {
     fontSize: 15,

@@ -278,6 +278,7 @@ export default function RoomScreen() {
   const canvasRef = useRef(null);
   const isDrawingRef = useRef(false);
   const whiteboardLinesRef = useRef([]);
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
 
   React.useEffect(() => {
     whiteboardLinesRef.current = whiteboardLines;
@@ -579,6 +580,10 @@ export default function RoomScreen() {
             <View 
               ref={canvasRef}
               style={styles.canvasContainer}
+              onLayout={(e) => {
+                const { width, height } = e.nativeEvent.layout;
+                setCanvasSize({ width, height });
+              }}
               onPointerDown={handleDrawStart}
               onPointerMove={handleDrawMove}
               onPointerUp={handleDrawEnd}
@@ -592,11 +597,18 @@ export default function RoomScreen() {
               onMouseUp={handleDrawEnd} 
               onMouseLeave={handleDrawEnd}
             >
-              <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" pointerEvents="none">
-                {whiteboardLines.map((line, index) => (
-                  <Polyline key={index} points={line.points.join(' ')} fill="none" stroke={line.color} strokeWidth={line.thickness} strokeLinecap="round" strokeLinejoin="round" />
-                ))}
-              </Svg>
+              {canvasSize.width > 0 && canvasSize.height > 0 && (
+                <Svg 
+                  style={StyleSheet.absoluteFill} 
+                  width={canvasSize.width} 
+                  height={canvasSize.height} 
+                  pointerEvents="none"
+                >
+                  {whiteboardLines.map((line, index) => (
+                    <Polyline key={index} points={line.points.join(' ')} fill="none" stroke={line.color} strokeWidth={line.thickness} strokeLinecap="round" strokeLinejoin="round" />
+                  ))}
+                </Svg>
+              )}
             </View>
           </View>
           <TouchableOpacity style={styles.closeFeatureOverlay} onPress={() => toggleWhiteboardState(false)}>

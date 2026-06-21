@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { RoomContext } from '../context/RoomContext';
+import LandingScreen from '../screens/LandingScreen';
 import AuthScreen from '../screens/AuthScreen';
 import HomeScreen from '../screens/HomeScreen';
 import RoomScreen from '../screens/RoomScreen';
@@ -26,14 +27,15 @@ export default function AppNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: COLORS.background },
+        contentStyle: { backgroundColor: '#050002' },
         // Smooth fade transition between screens
         animation: 'fade',
       }}
     >
       {token === null ? (
-        // Unauthenticated Flow: Auth
+        // Unauthenticated Flow: Landing -> Auth
         <Stack.Group>
+          <Stack.Screen name="Landing" component={LandingScreen} />
           <Stack.Screen name="Auth" component={AuthScreen} />
         </Stack.Group>
       ) : roomId === null ? (
@@ -50,7 +52,7 @@ export default function AppNavigator() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#050002',
     justifyContent: 'center',
     alignItems: 'center',
   },

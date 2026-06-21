@@ -830,8 +830,8 @@ export default function RoomScreen() {
                   <View style={[
                     styles.responsiveGrid, 
                     { 
-                      flexDirection: layoutMode === 'compact' ? 'row' : (isWideScreen ? 'row' : 'column'),
-                      flexWrap: layoutMode === 'compact' || (isWideScreen && participantCount > 1) ? 'wrap' : 'nowrap',
+                      flexDirection: 'row',
+                      flexWrap: 'wrap',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: 16
@@ -1661,8 +1661,10 @@ const getStyles = (COLORS) => StyleSheet.create({
     zIndex: 100,
   },
   mobileOverlayFilmstripContent: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    paddingHorizontal: 8,
   },
   pinButtonText: {
     color: '#ffffff',

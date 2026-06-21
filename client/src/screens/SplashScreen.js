@@ -24,8 +24,7 @@ export default function SplashScreen() {
   const isDark = themeMode === 'dark';
 
   // --- Animation Values ---
-  // Background (0.0s - 0.3s)
-  const bgOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
+  // Background is fully opaque from the start to prevent underlying screens from flashing
   
   // Icon (0.3s - 1.0s)
   const iconOpacity = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0)).current;
@@ -46,13 +45,6 @@ export default function SplashScreen() {
 
   useEffect(() => {
     if (prefersReducedMotion) return;
-
-    // 0.0s - 0.4s: Background fade
-    Animated.timing(bgOpacity, {
-      toValue: 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
 
     // 0.3s - 1.0s: Icon fade + scale + float
     Animated.sequence([
@@ -115,7 +107,7 @@ export default function SplashScreen() {
   const taglineColor = isDark ? 'rgba(247,182,200,0.7)' : 'rgba(233,137,166,1)';
 
   return (
-    <Animated.View style={[styles.root, { backgroundColor: bgColor, opacity: bgOpacity }]}>
+    <Animated.View style={[styles.root, { backgroundColor: bgColor }]}>
       
       {/* Background soft grain / glows */}
       <View style={[styles.bgGlow, { backgroundColor: isDark ? '#2E1521' : '#FCE7EF' }]} />

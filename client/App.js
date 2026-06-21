@@ -8,13 +8,13 @@ import AppNavigator from './src/navigation/AppNavigator';
 import SplashScreen from './src/screens/SplashScreen';
 
 // Duration of the full splash display (ms)
-const SPLASH_DURATION = 2600;
+const SPLASH_DURATION = 2800;
 
 /**
  * Check/set the "splash shown" flag in sessionStorage (web) or app state (native).
  * Returns true if we should skip the splash this session.
  */
-const SPLASH_SESSION_KEY = 'syncora_splash_shown_v1';
+const SPLASH_SESSION_KEY = 'syncora_splash_seen';
 
 function checkSplashShown() {
   if (Platform.OS === 'web' && typeof sessionStorage !== 'undefined') {
@@ -63,34 +63,32 @@ export default function App() {
   }, [showSplash]);
 
   return (
-    <>
-      {/* Main app — rendered behind the splash so it loads while splash plays */}
-      <NavigationContainer>
-        <AuthProvider>
-          <RoomProvider>
-            <AppNavigator />
-            <StatusBar style="light" />
-          </RoomProvider>
-        </AuthProvider>
-      </NavigationContainer>
+    <AuthProvider>
+      <RoomProvider>
+        {/* Main app — rendered behind the splash so it loads while splash plays */}
+        <NavigationContainer>
+          <AppNavigator />
+          <StatusBar style="light" />
+        </NavigationContainer>
 
-      {/* Splash overlaid on top, fades out */}
-      {showSplash && (
-        <Animated.View
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            opacity: splashOpacity,
-            zIndex: 9999,
-          }}
-          pointerEvents={showSplash ? 'auto' : 'none'}
-        >
-          <SplashScreen />
-        </Animated.View>
-      )}
-    </>
+        {/* Splash overlaid on top, fades out */}
+        {showSplash && (
+          <Animated.View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              opacity: splashOpacity,
+              zIndex: 9999,
+            }}
+            pointerEvents={showSplash ? 'auto' : 'none'}
+          >
+            <SplashScreen />
+          </Animated.View>
+        )}
+      </RoomProvider>
+    </AuthProvider>
   );
 }

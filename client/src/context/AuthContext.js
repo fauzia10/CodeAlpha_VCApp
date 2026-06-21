@@ -43,11 +43,19 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Theme Mode (dark | light)
+  const [themeMode, setThemeMode] = useState('dark');
+
   // Load token and user from SecureStore on startup, then validate against server
   useEffect(() => {
     const bootstrapAsync = async () => {
       try {
         const storedToken = await getSecurely(TOKEN_KEY);
+        const savedTheme = await getSecurely('syncora_theme');
+        
+        if (savedTheme === 'light' || savedTheme === 'dark') {
+          setThemeMode(savedTheme);
+        }
         const storedUser = await getSecurely(USER_KEY);
 
         if (storedToken && storedUser) {
@@ -152,11 +160,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Theme Mode (dark | light)
-  const [themeMode, setThemeMode] = useState('dark');
-
-  const toggleTheme = () => {
-    setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  const toggleTheme = async () => {
+    setThemeMode((prev) => {
+      const newTheme = prev === 'dark' ? 'light' : 'dark';
+      saveSecurely('syncora_theme', newTheme).catch(console.error);
+      return newTheme;
+    });
   };
 
   return (

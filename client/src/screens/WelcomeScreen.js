@@ -11,402 +11,264 @@ import {
   ScrollView,
 } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
-import { getColors } from '../theme/colors';
 
 const { width, height } = Dimensions.get('window');
-const isWide = Platform.OS === 'web' && width >= 900;
-
-// Feature chip data
-const FEATURES = [
-  { icon: '🎥', label: 'HD Video' },
-  { icon: '💬', label: 'Live Chat' },
-  { icon: '🖥️', label: 'Screen Share' },
-  { icon: '🎨', label: 'Whiteboard' },
-  { icon: '🤖', label: 'AI Summary' },
-];
+const isWide = width >= 900;
 
 export default function WelcomeScreen({ navigation }) {
   const { themeMode, toggleTheme } = useContext(AuthContext);
-  const COLORS = getColors(themeMode);
-  const styles  = getStyles(COLORS, themeMode);
-  const isDark  = themeMode === 'dark';
+  const isDark = themeMode === 'dark';
 
   // Entrance animation values
-  const heroFade  = useRef(new Animated.Value(0)).current;
-  const heroSlide = useRef(new Animated.Value(30)).current;
-  const cardFade  = useRef(new Animated.Value(0)).current;
+  const cardFade = useRef(new Animated.Value(0)).current;
   const cardSlide = useRef(new Animated.Value(30)).current;
+  const headerFade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(heroFade, { toValue: 1, duration: 600, useNativeDriver: true }),
-      Animated.timing(heroSlide, { toValue: 0, duration: 600, useNativeDriver: true }),
-    ]).start();
-
-    Animated.sequence([
-      Animated.delay(250),
-      Animated.parallel([
-        Animated.timing(cardFade, { toValue: 1, duration: 550, useNativeDriver: true }),
-        Animated.timing(cardSlide, { toValue: 0, duration: 550, useNativeDriver: true }),
-      ]),
+      Animated.timing(headerFade, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.timing(cardFade, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.timing(cardSlide, { toValue: 0, duration: 800, useNativeDriver: true }),
     ]).start();
   }, []);
 
+  const styles = getStyles(isDark, isWide);
+
   return (
     <View style={styles.root}>
-      {/* Background glows */}
+      {/* Soft Background Texture / Glows */}
       <View style={styles.bgGlow1} />
       <View style={styles.bgGlow2} />
 
-      {/* Header bar */}
-      <View style={styles.header}>
-        <View style={styles.headerBrand}>
-          <Image 
-            source={isDark ? require('../../assets/syncora-logo-dark.png') : require('../../assets/syncora-logo-light.png')} 
-            style={styles.headerLogo} 
-            resizeMode="contain" 
-          />
-        </View>
-        <TouchableOpacity style={styles.themeBtn} onPress={toggleTheme} accessibilityLabel="Toggle theme">
+      {/* Header */}
+      <Animated.View style={[styles.header, { opacity: headerFade }]}>
+        <Image
+          source={isDark ? require('../../assets/syncora-logo-dark.png') : require('../../assets/syncora-logo-light.png')}
+          style={styles.headerLogo}
+          resizeMode="contain"
+        />
+        <TouchableOpacity style={styles.themeBtn} onPress={toggleTheme} activeOpacity={0.7}>
           <Text style={styles.themeBtnText}>{isDark ? '☀️' : '🌙'}</Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
       >
-        {/* Hero section */}
         <Animated.View
           style={[
-            styles.heroSection,
-            { opacity: heroFade, transform: [{ translateY: heroSlide }] },
-          ]}
-        >
-          <View style={styles.logoRing}>
-            <Image source={isDark ? require('../../assets/syncora-logo-dark.png') : require('../../assets/syncora-logo-light.png')} style={styles.heroLogo} resizeMode="contain" />
-          </View>
-          <Text style={styles.heroTitle}>Welcome to Syncora</Text>
-          <Text style={styles.heroSubtitle}>
-            Video calls, live chat, screen sharing and collaborative whiteboards — all in one beautiful space.
-          </Text>
-
-          {/* Feature chips */}
-          <View style={styles.featureStrip}>
-            {FEATURES.map((f) => (
-              <View key={f.label} style={styles.featureChip}>
-                <Text style={styles.featureChipIcon}>{f.icon}</Text>
-                <Text style={styles.featureChipLabel}>{f.label}</Text>
-              </View>
-            ))}
-          </View>
-        </Animated.View>
-
-        {/* Action card */}
-        <Animated.View
-          style={[
-            styles.actionCard,
+            styles.glassCard,
             { opacity: cardFade, transform: [{ translateY: cardSlide }] },
           ]}
         >
-          <Text style={styles.cardTitle}>Get started</Text>
-          <Text style={styles.cardSubtitle}>Sign in to your account or create a new one</Text>
+          <Text style={styles.title}>Welcome to Syncora</Text>
+          <Text style={styles.subtitle}>
+            A cozy space for video calls, chat, screen sharing, and shared ideas.
+          </Text>
 
-          {/* Sign in button */}
-          <TouchableOpacity
-            id="welcome-signin-btn"
-            style={styles.signInButton}
-            onPress={() => navigation.navigate('Auth', { initialMode: 'login' })}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.signInButtonText}>Sign in</Text>
-          </TouchableOpacity>
-
-          {/* Create account button */}
-          <TouchableOpacity
-            id="welcome-signup-btn"
-            style={styles.signUpButton}
-            onPress={() => navigation.navigate('Auth', { initialMode: 'register' })}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.signUpButtonText}>Create account</Text>
-          </TouchableOpacity>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
+          <View style={styles.featurePills}>
+            {['🎥 Video calls', '💬 Live chat', '🖥️ Screen sharing', '✨ Whiteboard'].map((f) => (
+              <View key={f} style={styles.pill}>
+                <Text style={styles.pillText}>{f}</Text>
+              </View>
+            ))}
           </View>
 
-          {/* Join with code quick link */}
-          <TouchableOpacity
-            id="welcome-join-code-btn"
-            style={styles.joinCodeButton}
-            onPress={() => navigation.navigate('Auth', { initialMode: 'login' })}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.joinCodeText}>🔗  Have a room code? Sign in to join</Text>
-          </TouchableOpacity>
+          <View style={styles.actionSection}>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => navigation.navigate('Auth', { initialMode: 'register' })}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryButtonText}>Create or join a meeting</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => navigation.navigate('Auth', { initialMode: 'login' })}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.secondaryButtonText}>Sign in</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
 
-        {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>© {new Date().getFullYear()} Syncora · Meet beautifully.</Text>
+          <Text style={styles.footerText}>Made for better conversations.</Text>
         </View>
       </ScrollView>
     </View>
   );
 }
 
-const getStyles = (COLORS, themeMode) => {
-  const isDark = themeMode === 'dark';
-
+const getStyles = (isDark, isWide) => {
   return StyleSheet.create({
     root: {
       flex: 1,
-      backgroundColor: isDark ? '#110a0d' : '#FFF5F8',
+      backgroundColor: isDark ? '#110A0D' : '#FFF5F8',
       overflow: 'hidden',
     },
 
-    // Background decorative glows
+    // Background Glows
     bgGlow1: {
       position: 'absolute',
-      top: -height * 0.08,
-      left: -width * 0.15,
+      top: -height * 0.1,
+      left: -width * 0.2,
       width: width * 1.2,
-      height: height * 0.55,
+      height: height * 0.6,
       borderRadius: 9999,
-      backgroundColor: isDark ? '#4a1628' : '#F7B6C8',
-      opacity: isDark ? 0.18 : 0.28,
-      ...(Platform.OS === 'web' && { filter: 'blur(90px)' }),
+      backgroundColor: isDark ? '#4A1628' : '#F7B6C8',
+      opacity: isDark ? 0.15 : 0.25,
+      ...(Platform.OS === 'web' && { filter: 'blur(100px)' }),
     },
     bgGlow2: {
       position: 'absolute',
-      bottom: -height * 0.08,
+      bottom: -height * 0.1,
       right: -width * 0.1,
-      width: width * 0.9,
-      height: height * 0.45,
+      width: width * 0.8,
+      height: height * 0.5,
       borderRadius: 9999,
-      backgroundColor: isDark ? '#3d1a26' : '#FCE7EF',
-      opacity: isDark ? 0.22 : 0.45,
-      ...(Platform.OS === 'web' && { filter: 'blur(70px)' }),
+      backgroundColor: isDark ? '#3D1A26' : '#FCE7EF',
+      opacity: isDark ? 0.2 : 0.4,
+      ...(Platform.OS === 'web' && { filter: 'blur(80px)' }),
     },
 
     // Header
     header: {
       flexDirection: 'row',
-      alignItems: 'center',
       justifyContent: 'space-between',
+      alignItems: 'center',
       paddingHorizontal: 24,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderColor: isDark ? 'rgba(247,182,200,0.1)' : 'rgba(233,137,166,0.15)',
-      backgroundColor: isDark ? 'rgba(17,10,13,0.9)' : 'rgba(255,245,248,0.9)',
-      ...(Platform.OS === 'web' && { backdropFilter: 'blur(12px)' }),
-    },
-    headerBrand: {
-      flex: 1,
+      paddingVertical: 20,
+      zIndex: 10,
     },
     headerLogo: {
-      height: 36,
+      height: 38,
       width: 140,
     },
     themeBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      backgroundColor: isDark ? 'rgba(247,182,200,0.1)' : 'rgba(233,137,166,0.12)',
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: isDark ? 'rgba(247,182,200,0.1)' : 'rgba(233,137,166,0.15)',
       alignItems: 'center',
       justifyContent: 'center',
     },
     themeBtnText: {
-      fontSize: 17,
+      fontSize: 18,
     },
 
-    // Scroll
+    // Layout
     scrollContent: {
-      paddingHorizontal: isWide ? 48 : 20,
-      paddingBottom: 48,
-      maxWidth: isWide ? 760 : undefined,
-      alignSelf: isWide ? 'center' : undefined,
-      width: '100%',
       flexGrow: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingBottom: 40,
     },
 
-    // Hero
-    heroSection: {
+    // Glass Card
+    glassCard: {
+      width: '100%',
+      maxWidth: isWide ? 640 : 480,
+      backgroundColor: isDark ? 'rgba(41,27,33,0.85)' : 'rgba(255,255,255,0.8)',
+      borderRadius: 24,
+      padding: isWide ? 48 : 32,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(247,182,200,0.15)' : 'rgba(233,137,166,0.25)',
       alignItems: 'center',
-      paddingTop: isWide ? 52 : 40,
-      paddingBottom: 8,
-      marginBottom: 8,
-    },
-    logoRing: {
-      width: 130,
-      height: 130,
-      borderRadius: 65,
-      backgroundColor: isDark ? 'rgba(247,182,200,0.08)' : 'rgba(247,182,200,0.18)',
-      borderWidth: 1.5,
-      borderColor: isDark ? 'rgba(247,182,200,0.2)' : 'rgba(233,137,166,0.3)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 28,
       ...(Platform.OS === 'web' && {
+        backdropFilter: 'blur(20px)',
         boxShadow: isDark
-          ? '0 0 48px rgba(247,182,200,0.2)'
-          : '0 0 48px rgba(247,182,200,0.35)',
+          ? '0 12px 60px rgba(247,182,200,0.05)'
+          : '0 12px 60px rgba(233,137,166,0.15)',
       }),
     },
-    heroLogo: {
-      width: 90,
-      height: 90,
-    },
-    heroTitle: {
-      fontSize: isWide ? 40 : 32,
+
+    title: {
+      fontSize: isWide ? 38 : 30,
       fontWeight: '900',
       color: isDark ? '#F7D6E0' : '#3D2630',
+      marginBottom: 12,
       textAlign: 'center',
-      marginBottom: 14,
-      letterSpacing: 0.4,
+      letterSpacing: 0.5,
     },
-    heroSubtitle: {
-      fontSize: isWide ? 17 : 14,
-      color: isDark ? 'rgba(247,182,200,0.65)' : 'rgba(61,38,48,0.6)',
+    subtitle: {
+      fontSize: isWide ? 16 : 15,
+      color: isDark ? 'rgba(247,182,200,0.7)' : 'rgba(61,38,48,0.7)',
       textAlign: 'center',
       lineHeight: 24,
-      maxWidth: 480,
-      marginBottom: 28,
+      marginBottom: 32,
+      maxWidth: 400,
     },
 
-    // Feature chips row
-    featureStrip: {
+    // Feature Pills
+    featurePills: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 8,
       justifyContent: 'center',
-      marginTop: 4,
+      gap: 10,
+      marginBottom: 40,
     },
-    featureChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 5,
-      paddingHorizontal: 12,
-      paddingVertical: 7,
+    pill: {
+      backgroundColor: isDark ? 'rgba(247,182,200,0.1)' : '#FCE7EF',
+      paddingHorizontal: 14,
+      paddingVertical: 8,
       borderRadius: 20,
-      backgroundColor: isDark ? 'rgba(247,182,200,0.08)' : '#FCE7EF',
       borderWidth: 1,
-      borderColor: isDark ? 'rgba(247,182,200,0.15)' : 'rgba(233,137,166,0.3)',
+      borderColor: isDark ? 'rgba(247,182,200,0.2)' : 'rgba(233,137,166,0.3)',
     },
-    featureChipIcon: { fontSize: 13 },
-    featureChipLabel: {
-      fontSize: 12,
-      fontWeight: '700',
+    pillText: {
+      fontSize: 13,
+      fontWeight: '600',
       color: isDark ? '#F7B6C8' : '#E989A6',
     },
 
-    // Action card
-    actionCard: {
-      backgroundColor: isDark ? 'rgba(41,27,33,0.95)' : '#ffffff',
-      borderRadius: 24,
-      padding: isWide ? 40 : 28,
-      marginTop: 28,
-      borderWidth: 1,
-      borderColor: isDark ? 'rgba(247,182,200,0.14)' : 'rgba(233,137,166,0.25)',
-      ...(Platform.OS === 'web' && {
-        boxShadow: isDark
-          ? '0 8px 48px rgba(247,182,200,0.06)'
-          : '0 8px 40px rgba(233,137,166,0.1)',
-      }),
+    // Actions
+    actionSection: {
+      width: '100%',
+      gap: 14,
     },
-    cardTitle: {
-      fontSize: 22,
-      fontWeight: '800',
-      color: isDark ? '#F7D6E0' : '#3D2630',
-      marginBottom: 6,
-      textAlign: 'center',
-    },
-    cardSubtitle: {
-      fontSize: 13,
-      color: isDark ? 'rgba(247,182,200,0.55)' : 'rgba(61,38,48,0.5)',
-      textAlign: 'center',
-      marginBottom: 28,
-    },
-
-    // Sign in (primary)
-    signInButton: {
+    primaryButton: {
       backgroundColor: '#E989A6',
       borderRadius: 14,
-      paddingVertical: 15,
+      paddingVertical: 16,
       alignItems: 'center',
-      marginBottom: 12,
       ...(Platform.OS === 'web' && {
-        boxShadow: '0 4px 20px rgba(233,137,166,0.45)',
-        transition: 'box-shadow 0.2s',
+        boxShadow: '0 4px 20px rgba(233,137,166,0.4)',
       }),
     },
-    signInButtonText: {
-      color: '#ffffff',
+    primaryButtonText: {
+      color: '#FFFFFF',
       fontSize: 16,
       fontWeight: '800',
-      letterSpacing: 0.3,
+      letterSpacing: 0.5,
     },
-
-    // Create account (outlined)
-    signUpButton: {
-      backgroundColor: isDark ? 'rgba(247,182,200,0.08)' : '#FCE7EF',
+    secondaryButton: {
+      backgroundColor: isDark ? 'rgba(247,182,200,0.05)' : 'transparent',
       borderRadius: 14,
-      paddingVertical: 15,
+      paddingVertical: 16,
       alignItems: 'center',
       borderWidth: 2,
       borderColor: isDark ? 'rgba(247,182,200,0.3)' : '#E989A6',
-      marginBottom: 20,
     },
-    signUpButtonText: {
+    secondaryButtonText: {
       color: isDark ? '#F7B6C8' : '#E989A6',
       fontSize: 16,
       fontWeight: '800',
-      letterSpacing: 0.3,
-    },
-
-    // Divider
-    divider: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-      marginBottom: 20,
-    },
-    dividerLine: {
-      flex: 1,
-      height: 1,
-      backgroundColor: isDark ? 'rgba(247,182,200,0.1)' : 'rgba(233,137,166,0.2)',
-    },
-    dividerText: {
-      fontSize: 12,
-      color: isDark ? 'rgba(247,182,200,0.35)' : 'rgba(61,38,48,0.35)',
-      fontWeight: '600',
-    },
-
-    // Join with code (ghost)
-    joinCodeButton: {
-      paddingVertical: 12,
-      alignItems: 'center',
-      borderRadius: 12,
-    },
-    joinCodeText: {
-      fontSize: 13,
-      color: isDark ? 'rgba(247,182,200,0.55)' : 'rgba(61,38,48,0.5)',
-      fontWeight: '500',
+      letterSpacing: 0.5,
     },
 
     // Footer
     footer: {
-      alignItems: 'center',
-      paddingVertical: 28,
+      marginTop: 40,
     },
     footerText: {
-      fontSize: 11,
-      color: isDark ? 'rgba(247,182,200,0.3)' : 'rgba(61,38,48,0.3)',
-      letterSpacing: 0.3,
+      fontSize: 13,
+      fontWeight: '500',
+      color: isDark ? 'rgba(247,182,200,0.4)' : 'rgba(61,38,48,0.4)',
+      letterSpacing: 0.5,
     },
   });
 };

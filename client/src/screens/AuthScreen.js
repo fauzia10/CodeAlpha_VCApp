@@ -14,8 +14,9 @@ import {
 import { AuthContext } from '../context/AuthContext';
 import { getColors } from '../theme/colors';
 
-export default function AuthScreen() {
-  const [isLogin, setIsLogin] = useState(true);
+export default function AuthScreen({ route }) {
+  const initialMode = route?.params?.initialMode;
+  const [isLogin, setIsLogin] = useState(initialMode !== 'register');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

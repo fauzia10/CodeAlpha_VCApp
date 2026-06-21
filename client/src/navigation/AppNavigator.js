@@ -4,6 +4,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { RoomContext } from '../context/RoomContext';
 import AuthScreen from '../screens/AuthScreen';
+import WelcomeScreen from '../screens/WelcomeScreen';
 import HomeScreen from '../screens/HomeScreen';
 import RoomScreen from '../screens/RoomScreen';
 import { COLORS } from '../theme/colors';
@@ -27,11 +28,16 @@ export default function AppNavigator() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: COLORS.background },
+        // Smooth fade transition between screens
+        animation: 'fade',
       }}
     >
       {token === null ? (
-        // Unauthenticated Flow
-        <Stack.Screen name="Auth" component={AuthScreen} />
+        // Unauthenticated Flow: Welcome → Auth
+        <Stack.Group>
+          <Stack.Screen name="Welcome" component={WelcomeScreen} />
+          <Stack.Screen name="Auth" component={AuthScreen} />
+        </Stack.Group>
       ) : roomId === null ? (
         // Authenticated but not in a Room
         <Stack.Screen name="Home" component={HomeScreen} />

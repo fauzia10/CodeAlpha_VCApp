@@ -87,7 +87,7 @@ export default function RoomScreen() {
   const COLORS = getColors(themeMode);
   const styles = getStyles(COLORS);
 
-  const [layoutMode, setLayoutMode] = useState('grid'); // 'grid', 'focus', 'speaker', 'presentation', 'compact'
+  const [layoutMode, setLayoutMode] = useState('grid'); // 'grid', 'focus', 'presentation'
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
 
   const [activeTab, setActiveTab] = useState('video'); // 'video' | 'chat' | 'whiteboard'
@@ -490,9 +490,7 @@ export default function RoomScreen() {
 
   // Determine who should be the focus
   let activeFocusId = pinnedSocketId;
-  if (!activeFocusId && layoutMode === 'speaker') {
-    activeFocusId = activeSpeakerId || 'local';
-  } else if (!activeFocusId && layoutMode === 'focus') {
+  if (!activeFocusId && layoutMode === 'focus') {
     activeFocusId = remoteKeys.length > 0 ? remoteKeys[0] : 'local';
   }
 
@@ -520,14 +518,18 @@ export default function RoomScreen() {
   // Tiles get equal flex slices of the sidebar and never scroll or crop.
   const renderPresentationSidebar = () => {
     const tilesToRender = [];
-    tilesToRender.push('local');
+    if (presentationState?.userId !== 'local' && activeFocusId !== 'local') {
+      tilesToRender.push('local');
+    }
     remoteKeys.forEach(id => {
-      if (id !== presentationState?.userId) tilesToRender.push(id);
+      if (id !== presentationState?.userId && id !== activeFocusId) {
+        tilesToRender.push(id);
+      }
     });
 
     const tileStyle = isWideScreen
       ? { flex: 1, minHeight: 0, width: '100%', marginBottom: 8 }
-      : { flex: 1, minWidth: 0, height: '100%', marginRight: 8 };
+      : { width: 100, height: 140, marginRight: 8 };
 
     return tilesToRender.map(id => {
       if (id === 'local') return renderLocalVideoTile(tileStyle);
@@ -622,6 +624,11 @@ export default function RoomScreen() {
           {activeFocusId === 'local' 
             ? renderLocalVideoTile(getDynamicTileStyle(1, 'focus')) 
             : renderVideoTile(activeFocusId, getDynamicTileStyle(1, 'focus'))}
+          {layoutMode === 'focus' && (
+            <TouchableOpacity style={styles.closeFeatureOverlay} onPress={() => { setLayoutMode('grid'); setPinnedSocketId(null); }}>
+              <Text style={styles.closeFeatureText}>✖ Exit Focus</Text>
+            </TouchableOpacity>
+          )}
         </View>
       );
     }
@@ -785,15 +792,21 @@ export default function RoomScreen() {
           <View style={styles.mainViewContainer}>
             {hasFeature ? (
               <View style={isWideScreen ? styles.splitViewDesktop : styles.splitViewMobile}>
-                <View style={[styles.featurePane, isWideScreen ? (isSplit50 ? styles.flex65 : styles.flex75) : styles.flex60]}>
+                <View style={[styles.featurePane, isWideScreen ? (isSplit50 ? styles.flex65 : styles.flex75) : styles.mobileFeatureFullScreen]}>
                   {renderFeatureArea()}
                 </View>
                 {/* Dedicated presentation sidebar - no ScrollView to prevent cropping */}
                 <View style={[
-                  isWideScreen ? styles.flex35 : styles.flex40,
+                  isWideScreen ? styles.flex35 : styles.mobileOverlayFilmstrip,
                   styles.presentationSidebarPane
                 ]}>
-                  {renderPresentationSidebar()}
+                  {isWideScreen ? (
+                    renderPresentationSidebar()
+                  ) : (
+                    <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} style={{flex: 1, width: '100%'}} contentContainerStyle={styles.mobileOverlayFilmstripContent}>
+                      {renderPresentationSidebar()}
+                    </ScrollView>
+                  )}
                 </View>
               </View>
             ) : (
@@ -855,7 +868,7 @@ export default function RoomScreen() {
       {showLayoutMenu && (
         <View style={styles.layoutMenu}>
           <Text style={styles.layoutMenuTitle}>Layout Mode</Text>
-          {['grid', 'focus', 'speaker', 'presentation', 'compact'].map(mode => (
+          {['grid', 'focus', 'presentation'].map(mode => (
             <TouchableOpacity key={mode} style={[styles.layoutMenuItem, layoutMode === mode && styles.layoutMenuItemActive]} onPress={() => { setLayoutMode(mode); setShowLayoutMenu(false); }}>
               <Text style={[styles.layoutMenuText, layoutMode === mode && styles.layoutMenuTextActive]}>{mode.charAt(0).toUpperCase() + mode.slice(1)}</Text>
             </TouchableOpacity>
@@ -1341,18 +1354,31 @@ const getStyles = (COLORS) => StyleSheet.create({
     fontSize: 13,
   },
   whiteboardContainer: {
+    width: '100%',
+    height: '100%',
     flex: 1,
+    minWidth: 0,
+    minHeight: 0,
+    overflow: 'hidden',
     backgroundColor: COLORS.background,
-    padding: 12,
-    gap: 12,
   },
   whiteboardToolbar: {
-    backgroundColor: COLORS.surface,
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    zIndex: 10,
+    backgroundColor: 'rgba(253, 242, 245, 0.9)',
     borderRadius: 16,
     padding: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     gap: 12,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   toolbarRow: {
     flexDirection: 'row',
@@ -1600,7 +1626,27 @@ const getStyles = (COLORS) => StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    zIndex: 15,
+    zIndex: 10,
+  },
+  mobileFeatureFullScreen: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  mobileOverlayFilmstrip: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 160,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    zIndex: 100,
+  },
+  mobileOverlayFilmstripContent: {
+    alignItems: 'center',
+    gap: 8,
   },
   pinButtonText: {
     color: '#ffffff',

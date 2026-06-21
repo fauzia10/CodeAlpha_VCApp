@@ -62,7 +62,7 @@ export default function WelcomeScreen({ navigation }) {
       <View style={styles.header}>
         <View style={styles.headerBrand}>
           <Image 
-            source={isDark ? require('../../assets/logo-dark.png') : require('../../assets/logo.png')} 
+            source={isDark ? require('../../assets/syncora-logo-dark.png') : require('../../assets/syncora-logo-light.png')} 
             style={styles.headerLogo} 
             resizeMode="contain" 
           />
@@ -85,7 +85,7 @@ export default function WelcomeScreen({ navigation }) {
           ]}
         >
           <View style={styles.logoRing}>
-            <Image source={require('../../assets/icon.png')} style={styles.heroLogo} resizeMode="contain" />
+            <Image source={isDark ? require('../../assets/syncora-logo-dark.png') : require('../../assets/syncora-logo-light.png')} style={styles.heroLogo} resizeMode="contain" />
           </View>
           <Text style={styles.heroTitle}>Welcome to Syncora</Text>
           <Text style={styles.heroSubtitle}>

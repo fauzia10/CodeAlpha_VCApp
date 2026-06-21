@@ -749,7 +749,7 @@ export default function RoomScreen() {
       
       <View style={styles.topBar}>
         <View style={styles.headerLogoContainer}>
-          <Image source={require('../../assets/icon.png')} style={styles.headerLogo} />
+          <Image source={themeMode === 'dark' ? require('../../assets/syncora-logo-dark.png') : require('../../assets/syncora-logo-light.png')} style={styles.headerLogo} />
         </View>
         <TouchableOpacity style={styles.roomCodeContainer} onPress={copyRoomIdToClipboard}>
           <Text style={styles.roomCodeLabel}>ROOM ID (Tap to Copy)</Text>

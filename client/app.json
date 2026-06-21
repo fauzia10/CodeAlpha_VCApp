@@ -4,7 +4,7 @@
     "slug": "syncora",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/syncora-icon-only.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
@@ -12,11 +12,11 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FCE7EF",
-        "foregroundImage": "./assets/icon.png"
+        "foregroundImage": "./assets/syncora-icon-only.png"
       }
     },
     "web": {
-      "favicon": "./assets/syncora-favicon-v5.png",
+      "favicon": "./public/syncora-favicon-v10.png",
       "bundler": "metro"
     },
     "plugins": [

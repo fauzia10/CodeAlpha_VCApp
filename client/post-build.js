@@ -14,7 +14,7 @@ const distDir   = path.join(__dirname, 'dist');
 const publicDir = path.join(__dirname, 'public');
 const indexPath = path.join(distDir, 'index.html');
 
-const V = 9; // favicon version — bump whenever you change the favicon
+const V = 10; // favicon version — bump whenever you change the favicon
 
 const filesToCopy = [
   `syncora-favicon-v${V}.png`,

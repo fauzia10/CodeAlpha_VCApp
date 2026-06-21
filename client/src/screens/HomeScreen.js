@@ -120,7 +120,7 @@ export default function HomeScreen({ navigation }) {
       <View style={styles.header}>
         <View style={styles.headerBrand}>
           <Image
-            source={isDark ? require('../../assets/logo-dark.png') : require('../../assets/logo.png')}
+            source={isDark ? require('../../assets/syncora-logo-dark.png') : require('../../assets/syncora-logo-light.png')}
             style={styles.headerLogo}
           />
           <Text style={styles.headerBrandName}>Syncora</Text>
@@ -145,7 +145,7 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.heroSection}>
           <View style={styles.logoCircle}>
             <Image
-              source={require('../../assets/icon.png')}
+              source={isDark ? require('../../assets/syncora-logo-dark.png') : require('../../assets/syncora-logo-light.png')}
               style={styles.heroLogo}
             />
           </View>

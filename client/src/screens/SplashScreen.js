@@ -207,7 +207,7 @@ export default function SplashScreen({ onDone }) {
       >
         <View style={styles.logoGlowRing}>
           <Image
-            source={require('../../assets/icon.png')}
+            source={isDark ? require('../../assets/syncora-logo-dark.png') : require('../../assets/syncora-logo-light.png')}
             style={styles.logo}
             resizeMode="contain"
           />

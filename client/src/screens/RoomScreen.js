@@ -992,13 +992,16 @@ const getStyles = (COLORS) => StyleSheet.create({
     borderColor: COLORS.border,
   },
   headerLogoContainer: {
-    width: 300,
+    width: 160,
     alignItems: 'flex-start',
   },
   headerLogo: {
-    width: 280,
-    height: 80,
+    width: 180,
+    height: 120,
     resizeMode: 'contain',
+    marginTop: -35,
+    marginBottom: -35,
+    marginLeft: -10,
   },
   leaveButton: {
     backgroundColor: COLORS.error,

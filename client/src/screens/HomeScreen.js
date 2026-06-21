@@ -259,9 +259,12 @@ const getStyles = (COLORS, themeMode) => {
       gap: 10,
     },
     headerLogo: {
-      width: 280,
-      height: 80,
+      width: 200,
+      height: 133,
       resizeMode: 'contain',
+      marginTop: -40,
+      marginBottom: -40,
+      marginLeft: -20,
       ...(isDark && {
         shadowColor: '#F7B6C8',
         shadowRadius: 8,
@@ -330,9 +333,11 @@ const getStyles = (COLORS, themeMode) => {
       }),
     },
     heroLogo: {
-      width: 400,
-      height: 120,
+      width: 500,
+      height: 333,
       resizeMode: 'contain',
+      marginTop: -80,
+      marginBottom: -60,
     },
     heroTitle: {
       fontSize: 26,

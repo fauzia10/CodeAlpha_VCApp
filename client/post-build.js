@@ -30,6 +30,13 @@ filesToCopy.forEach((file) => {
   if (fs.existsSync(src)) {
     fs.copyFileSync(src, dest);
     console.log(`[COPY] ${file} -> dist/${file}`);
+    
+    // Also explicitly overwrite dist/favicon.ico so browsers don't fallback to old cached expo icons
+    if (file.endsWith('.ico')) {
+      const rootFavicon = path.join(distDir, 'favicon.ico');
+      fs.copyFileSync(src, rootFavicon);
+      console.log(`[OVERWRITE] dist/favicon.ico overwritten with ${file}`);
+    }
   } else {
     console.warn(`[WARN] Source not found in public/: ${file}`);
   }

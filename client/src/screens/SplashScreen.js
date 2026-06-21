@@ -7,6 +7,7 @@ import {
   Dimensions,
   Image,
   Platform,
+  useColorScheme,
 } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
@@ -83,6 +84,7 @@ const SPARKLES = [
 ];
 
 export default function SplashScreen({ onDone }) {
+  const isDark = useColorScheme() === 'dark';
   // Logo animations
   const fadeAnim   = useRef(new Animated.Value(0)).current;
   const scaleAnim  = useRef(new Animated.Value(prefersReducedMotion ? 1 : 0.72)).current;

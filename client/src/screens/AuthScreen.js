@@ -59,7 +59,7 @@ export default function AuthScreen({ route }) {
           <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
             <Text style={styles.themeToggleText}>{themeMode === 'dark' ? '☀️ Light' : '🌙 Dark'}</Text>
           </TouchableOpacity>
-          <Image source={require('../../assets/logo.png')} style={styles.logo} />
+          <Image source={themeMode === 'dark' ? require('../../assets/logo-dark.png') : require('../../assets/logo.png')} style={styles.logo} />
           <Text style={styles.title}>Syncora</Text>
           <Text style={styles.subtitle}>
             {isLogin ? 'Sign in to start collaboration' : 'Create an account to join meetings'}

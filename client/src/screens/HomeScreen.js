@@ -120,7 +120,7 @@ export default function HomeScreen({ navigation }) {
       <View style={styles.header}>
         <View style={styles.headerBrand}>
           <Image
-            source={require('../../assets/logo.png')}
+            source={isDark ? require('../../assets/logo-dark.png') : require('../../assets/logo.png')}
             style={styles.headerLogo}
           />
           <Text style={styles.headerBrandName}>Syncora</Text>

@@ -26,7 +26,7 @@ export default function LandingScreen({ navigation }) {
         {/* Navigation Bar */}
         <View style={styles.navBar}>
           <View style={styles.logoContainer}>
-            <Image source={require('../../assets/logo.png')} style={styles.navLogo} />
+            <Image source={themeMode === 'dark' ? require('../../assets/logo-dark.png') : require('../../assets/logo.png')} style={styles.navLogo} />
             <Text style={styles.navBrand}>Syncora</Text>
           </View>
           <View style={styles.navActions}>
@@ -47,7 +47,7 @@ export default function LandingScreen({ navigation }) {
         {/* Hero Section */}
         <View style={styles.heroSection}>
           <View style={styles.heroGlow} />
-          <Image source={require('../../assets/logo.png')} style={styles.heroLogo} />
+          <Image source={themeMode === 'dark' ? require('../../assets/logo-dark.png') : require('../../assets/logo.png')} style={styles.heroLogo} />
           <Text style={styles.heroTitle}>Meet beautifully. Create together.</Text>
           <Text style={styles.heroSubtitle}>
             Video calls, chat, screen sharing, and collaborative whiteboards in one cozy space.
@@ -113,7 +113,7 @@ export default function LandingScreen({ navigation }) {
       {/* Footer */}
       <View style={styles.footer}>
         <View style={styles.footerContent}>
-          <Image source={require('../../assets/logo.png')} style={styles.footerLogo} />
+          <Image source={themeMode === 'dark' ? require('../../assets/logo-dark.png') : require('../../assets/logo.png')} style={styles.footerLogo} />
           <Text style={styles.footerTagline}>Syncora — The cozy collaboration space.</Text>
           <Text style={styles.footerCopyright}>© {new Date().getFullYear()} Syncora. All rights reserved.</Text>
         </View>

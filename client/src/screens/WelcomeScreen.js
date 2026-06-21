@@ -61,7 +61,11 @@ export default function WelcomeScreen({ navigation }) {
       {/* Header bar */}
       <View style={styles.header}>
         <View style={styles.headerBrand}>
-          <Image source={require('../../assets/logo.png')} style={styles.headerLogo} resizeMode="contain" />
+          <Image 
+            source={isDark ? require('../../assets/logo-dark.png') : require('../../assets/logo.png')} 
+            style={styles.headerLogo} 
+            resizeMode="contain" 
+          />
         </View>
         <TouchableOpacity style={styles.themeBtn} onPress={toggleTheme} accessibilityLabel="Toggle theme">
           <Text style={styles.themeBtnText}>{isDark ? '☀️' : '🌙'}</Text>

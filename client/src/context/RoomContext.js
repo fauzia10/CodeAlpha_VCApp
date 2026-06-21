@@ -298,8 +298,7 @@ export const RoomProvider = ({ children }) => {
       });
 
       // 6. Socket event: Relay WebRTC SDP Offer
-      socket.on('receive-offer', async ({ senderSocketId, sdp }) => {
-        const offer = sdp;
+      socket.on('offer', async ({ senderSocketId, offer }) => {
         console.log(`[CALL] offer received`, senderSocketId);
         let pc = peersRef.current.get(senderSocketId);
         
@@ -315,11 +314,11 @@ export const RoomProvider = ({ children }) => {
           await pc.setLocalDescription(answer);
 
           console.log(`[CALL] answer sent`, senderSocketId);
-          socketRef.current.emit('send-answer', {
+          socketRef.current.emit('answer', {
             roomId,
             senderSocketId: socketRef.current.id,
             targetSocketId: senderSocketId,
-            sdp: answer,
+            answer,
           });
 
           // Drain queued ICE candidates
@@ -334,8 +333,7 @@ export const RoomProvider = ({ children }) => {
       });
 
       // 7. Socket event: Relay WebRTC SDP Answer
-      socket.on('receive-answer', async ({ senderSocketId, sdp }) => {
-        const answer = sdp;
+      socket.on('answer', async ({ senderSocketId, answer }) => {
         console.log(`[CALL] answer received`, senderSocketId);
         const pc = peersRef.current.get(senderSocketId);
         if (pc) {
@@ -355,7 +353,7 @@ export const RoomProvider = ({ children }) => {
       });
 
       // 8. Socket event: Relay WebRTC ICE Candidates
-      socket.on('receive-ice-candidate', async ({ senderSocketId, candidate }) => {
+      socket.on('ice-candidate', async ({ senderSocketId, candidate }) => {
         console.log(`[CALL] ICE candidate received`, candidate?.candidate);
         const pc = peersRef.current.get(senderSocketId);
         if (pc && pc.remoteDescription && pc.remoteDescription.type) {
@@ -484,7 +482,7 @@ export const RoomProvider = ({ children }) => {
     pc.onicecandidate = (event) => {
       if (event.candidate && socketRef.current) {
         console.log(`[CALL] ICE candidate sent`, event.candidate.candidate);
-        socketRef.current.emit('send-ice-candidate', {
+        socketRef.current.emit('ice-candidate', {
           roomId,
           senderSocketId: socketRef.current.id,
           targetSocketId,
@@ -545,11 +543,11 @@ export const RoomProvider = ({ children }) => {
           await pc.setLocalDescription(offer);
           if (socketRef.current) {
             console.log(`[CALL] offer sent`, targetSocketId);
-            socketRef.current.emit('send-offer', {
+            socketRef.current.emit('offer', {
               roomId,
               senderSocketId: socketRef.current.id,
               targetSocketId,
-              sdp: offer,
+              offer,
             });
           }
         } catch (err) {

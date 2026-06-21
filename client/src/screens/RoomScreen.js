@@ -384,7 +384,7 @@ export default function RoomScreen() {
     sendWhiteboardData([]);
   };
 
-  const remoteKeys = Object.keys(remoteStreams);
+  const remoteKeys = participants.map(p => p.socketId);
   const participantCount = remoteKeys.length;
 
   
@@ -802,32 +802,31 @@ export default function RoomScreen() {
       <View style={styles.mainContent}>
         <View style={isWideScreen ? styles.wideContentContainer : styles.mobileContentContainer}>
           
-          <View style={styles.mainViewContainer}>
-            {hasFeature ? (
-              <View style={isWideScreen ? styles.splitViewDesktop : styles.splitViewMobile}>
-                <View style={[styles.featurePane, isWideScreen ? (isSplit50 ? styles.flex65 : styles.flex75) : styles.mobileFeatureFullScreen]}>
-                  {renderFeatureArea()}
-                </View>
-                {/* Dedicated presentation sidebar - no ScrollView to prevent cropping */}
-                <View style={[
-                  isWideScreen ? styles.flex35 : styles.mobileOverlayFilmstrip,
-                  styles.presentationSidebarPane
-                ]}>
-                  {isWideScreen ? (
-                    renderPresentationSidebar()
-                  ) : (
-                    <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} style={{flex: 1, width: '100%'}} contentContainerStyle={styles.mobileOverlayFilmstripContent}>
-                      {renderPresentationSidebar()}
-                    </ScrollView>
-                  )}
-                </View>
+          <View style={[styles.mainViewContainer, hasFeature && (isWideScreen ? styles.splitViewDesktop : styles.splitViewMobile)]}>
+            {hasFeature && (
+              <View style={[styles.featurePane, isWideScreen ? (isSplit50 ? styles.flex65 : styles.flex75) : styles.mobileFeatureFullScreen]}>
+                {renderFeatureArea()}
+              </View>
+            )}
+
+            {participantCount === 0 && !presentationState ? (
+              <View style={styles.defaultGridContainer}>
+                {renderAloneView()}
               </View>
             ) : (
-              <View style={styles.defaultGridContainer}>
-                {participantCount === 0 && !presentationState ? (
-                  renderAloneView()
-                ) : (
-                  <View style={[
+              <ScrollView
+                horizontal={hasFeature && !isWideScreen}
+                showsHorizontalScrollIndicator={false}
+                style={
+                  hasFeature ? [
+                    isWideScreen ? styles.flex35 : styles.mobileOverlayFilmstrip,
+                    styles.presentationSidebarPane
+                  ] : styles.defaultGridContainer
+                }
+                contentContainerStyle={
+                  hasFeature ? (
+                    isWideScreen ? {} : styles.mobileOverlayFilmstripContent
+                  ) : [
                     styles.responsiveGrid, 
                     { 
                       flexDirection: 'row',
@@ -836,11 +835,11 @@ export default function RoomScreen() {
                       justifyContent: 'center',
                       gap: 16
                     }
-                  ]}>
-                    {renderGridItems('grid')}
-                  </View>
-                )}
-              </View>
+                  ]
+                }
+              >
+                {hasFeature ? renderPresentationSidebar() : renderGridItems('grid')}
+              </ScrollView>
             )}
           </View>
 
@@ -912,10 +911,54 @@ export default function RoomScreen() {
             </TouchableOpacity>
           </>
         )}
+        <TouchableOpacity style={[styles.circularButton, showDiagnosticsPanel && styles.circularButtonActive]} onPress={() => setShowDiagnosticsPanel(!showDiagnosticsPanel)}>
+          <Text style={styles.controlIconText}>🔧</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.endCallButton} onPress={handleLeaveRoom}>
           <Text style={styles.endCallIconText}>📞</Text>
         </TouchableOpacity>
       </View>
+      {showDiagnosticsPanel && (
+        <View style={styles.diagnosticsWrapper}>
+          <View style={styles.diagHeader}>
+             <Text style={styles.diagTitle}>WebRTC Diagnostics</Text>
+             <TouchableOpacity onPress={clearDiagnosticsErrors}>
+               <Text style={styles.diagClearBtn}>Clear</Text>
+             </TouchableOpacity>
+          </View>
+          <ScrollView style={{maxHeight: 250, padding: 10}}>
+            <Text style={styles.diagText}>Socket: {diagnostics.socketStatus}</Text>
+            <Text style={styles.diagText}>Room ID: {roomId}</Text>
+            <Text style={styles.diagText}>Local Stream: {diagnostics.localStreamStatus}</Text>
+            {Object.keys(diagnostics.peers).map(peerId => {
+              const peer = diagnostics.peers[peerId];
+              const rStream = remoteStreams[peerId];
+              const tracks = rStream ? rStream.getTracks().map(t => `${t.kind}(${t.enabled?'on':'off'})`).join(', ') : 'none';
+              return (
+                <View key={peerId} style={{marginTop: 8, borderTopWidth: 1, borderColor: '#333', paddingTop: 8}}>
+                  <Text style={styles.diagText}>Peer: {peerId.slice(0,6)}...</Text>
+                  <Text style={styles.diagText}>  Conn: {peer.connectionState} | ICE: {peer.iceConnectionState}</Text>
+                  <Text style={styles.diagText}>  Remote Stream: {tracks}</Text>
+                  <Text style={styles.diagText}>  ontrack fired: {rStream ? 'YES' : 'NO'}</Text>
+                  {peer.localCandidateType && (
+                    <Text style={styles.diagText}>  ICE Type: Local={peer.localCandidateType}, Remote={peer.remoteCandidateType}</Text>
+                  )}
+                  {peer.turnUsed !== undefined && (
+                    <Text style={styles.diagText}>  TURN relay used: {peer.turnUsed ? 'YES' : 'NO'}</Text>
+                  )}
+                </View>
+              );
+            })}
+            {diagnostics.errors.length > 0 && (
+              <View style={{marginTop: 8}}>
+                <Text style={[styles.diagText, {color: '#ef4444'}]}>Errors:</Text>
+                {diagnostics.errors.map((err, i) => <Text key={i} style={[styles.diagText, {color: '#fca5a5', fontSize: 10}]}>{err}</Text>)}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      )}
+
     </SafeAreaView>
     </ErrorBoundary>
   );
@@ -2290,5 +2333,38 @@ const getStyles = (COLORS) => StyleSheet.create({
     color: '#ffffff',
     fontWeight: 'bold',
     fontSize: 12,
+  },
+  diagnosticsWrapper: {
+    position: 'absolute',
+    bottom: 90,
+    right: 20,
+    width: 300,
+    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+    zIndex: 9999,
+  },
+  diagHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 10,
+    borderBottomWidth: 1,
+    borderColor: '#334155',
+  },
+  diagTitle: {
+    color: '#38bdf8',
+    fontWeight: 'bold',
+    fontSize: 12,
+  },
+  diagClearBtn: {
+    color: '#ef4444',
+    fontSize: 12,
+  },
+  diagText: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    fontFamily: Platform.OS === 'web' ? 'monospace' : undefined,
+    marginBottom: 2,
   },
 });

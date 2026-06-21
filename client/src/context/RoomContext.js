@@ -527,9 +527,12 @@ export const RoomProvider = ({ children }) => {
             console.log(`[WebRTC] Appending remote track to existing stream for socket: ${targetSocketId}`);
             existingStream.addTrack(event.track);
           }
+          // Force a new stream reference so React Native state picks it up
+          const updatedStream = wrapMediaStream(existingStream);
+          updatedStream._trackCount = existingStream.getTracks().length; 
           return {
             ...prev,
-            [targetSocketId]: wrapMediaStream(existingStream),
+            [targetSocketId]: updatedStream,
           };
         } else {
           // Create a new stream and add the track

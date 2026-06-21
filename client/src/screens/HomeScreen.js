@@ -259,8 +259,8 @@ const getStyles = (COLORS, themeMode) => {
       gap: 10,
     },
     headerLogo: {
-      width: 52,
-      height: 52,
+      width: 140,
+      height: 40,
       resizeMode: 'contain',
       ...(isDark && {
         shadowColor: '#F7B6C8',
@@ -319,12 +319,6 @@ const getStyles = (COLORS, themeMode) => {
       paddingBottom: 8,
     },
     logoCircle: {
-      width: 160,
-      height: 160,
-      borderRadius: 80,
-      backgroundColor: isDark ? 'rgba(247,182,200,0.1)' : '#FCE7EF',
-      borderWidth: 2,
-      borderColor: isDark ? 'rgba(247,182,200,0.25)' : '#F7B6C8',
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: 20,
@@ -336,8 +330,8 @@ const getStyles = (COLORS, themeMode) => {
       }),
     },
     heroLogo: {
-      width: 100,
-      height: 100,
+      width: 280,
+      height: 80,
       resizeMode: 'contain',
     },
     heroTitle: {

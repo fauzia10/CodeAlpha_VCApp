@@ -992,12 +992,12 @@ const getStyles = (COLORS) => StyleSheet.create({
     borderColor: COLORS.border,
   },
   headerLogoContainer: {
-    width: 60,
+    width: 130,
     alignItems: 'flex-start',
   },
   headerLogo: {
-    width: 52,
-    height: 52,
+    width: 120,
+    height: 36,
     resizeMode: 'contain',
   },
   leaveButton: {

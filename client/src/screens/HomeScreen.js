@@ -123,7 +123,6 @@ export default function HomeScreen({ navigation }) {
             source={isDark ? require('../../assets/syncora-logo-dark.png') : require('../../assets/syncora-logo-light.png')}
             style={styles.headerLogo}
           />
-          <Text style={styles.headerBrandName}>Syncora</Text>
         </View>
 
         <View style={styles.headerActions}>
@@ -260,8 +259,8 @@ const getStyles = (COLORS, themeMode) => {
       gap: 10,
     },
     headerLogo: {
-      width: 38,
-      height: 38,
+      width: 52,
+      height: 52,
       resizeMode: 'contain',
       ...(isDark && {
         shadowColor: '#F7B6C8',
@@ -320,9 +319,9 @@ const getStyles = (COLORS, themeMode) => {
       paddingBottom: 8,
     },
     logoCircle: {
-      width: 110,
-      height: 110,
-      borderRadius: 55,
+      width: 160,
+      height: 160,
+      borderRadius: 80,
       backgroundColor: isDark ? 'rgba(247,182,200,0.1)' : '#FCE7EF',
       borderWidth: 2,
       borderColor: isDark ? 'rgba(247,182,200,0.25)' : '#F7B6C8',
@@ -337,8 +336,8 @@ const getStyles = (COLORS, themeMode) => {
       }),
     },
     heroLogo: {
-      width: 70,
-      height: 70,
+      width: 100,
+      height: 100,
       resizeMode: 'contain',
     },
     heroTitle: {

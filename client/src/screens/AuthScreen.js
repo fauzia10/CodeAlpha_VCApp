@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   keyboardView: { flex: 1, zIndex: 1 },
   scrollContainer: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   logoContainer: { marginBottom: 32 },
-  logo: { width: 90, height: 90, resizeMode: 'contain', ...(Platform.OS === 'web' && { filter: 'drop-shadow(0px 4px 12px rgba(233, 30, 99, 0.4))' }) },
+  logo: { width: 120, height: 120, resizeMode: 'contain', ...(Platform.OS === 'web' && { filter: 'drop-shadow(0px 4px 12px rgba(233, 30, 99, 0.4))' }) },
   title: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF', marginBottom: 8, textAlign: 'center' },
   subtitle: { fontSize: 16, color: 'rgba(255,255,255,0.6)', marginBottom: 40, textAlign: 'center' },
   errorText: { color: '#FF6B9E', backgroundColor: 'rgba(233, 30, 99, 0.1)', padding: 12, borderRadius: 8, marginBottom: 20, width: '100%', maxWidth: 400, textAlign: 'center' },

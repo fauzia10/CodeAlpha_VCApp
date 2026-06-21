@@ -13,9 +13,9 @@ console.log(`[WebRTC] TURN URL count: ${isTurnConfigured ? 3 : 0}`);
 export const peerConnectionConfig = {
   get iceServers() {
     const servers = [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' }
+      { urls: 'stun:74.125.250.129:19302' }, // IP for stun.l.google.com
+      { urls: 'stun:142.250.14.127:19302' }, // IP for stun1.l.google.com
+      { urls: 'stun:142.250.136.127:19302' } // IP for stun2.l.google.com
     ];
     if (isTurnConfigured) {
       servers.push(

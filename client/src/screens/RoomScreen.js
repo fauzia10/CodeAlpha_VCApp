@@ -444,6 +444,7 @@ export default function RoomScreen() {
         </TouchableOpacity>
         {stream ? (
           <RTCView
+            stream={stream}
             streamURL={stream.toURL()}
             style={styles.rtcStreamView}
             objectFit="cover"
@@ -474,6 +475,7 @@ export default function RoomScreen() {
         </TouchableOpacity>
         {localStream && !isVideoMuted ? (
           <RTCView
+            stream={localStream}
             streamURL={localStream.toURL()}
             style={styles.rtcStreamView}
             objectFit="cover"

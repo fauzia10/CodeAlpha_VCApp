@@ -44,10 +44,10 @@ export const RoomProvider = ({ children }) => {
 
 
   const socketRef = useRef(null);
-  const peersRef = useRef({}); // Store RTCPeerConnections mapped by remote socketId
+  const peersRef = useRef(new Map()); // Store RTCPeerConnections mapped by remote socketId
   const localStreamRef = useRef(null); // Reference to avoid stale state closures
   const screenStreamRef = useRef(null); // Store screen sharing stream reference
-  const iceCandidateQueues = useRef({}); // Store queued ICE candidates mapped by senderSocketId
+  const pendingCandidatesRef = useRef(new Map()); // Store queued ICE candidates mapped by senderSocketId
 
   // Diagnostics State
   const [diagnostics, setDiagnostics] = useState({
@@ -84,7 +84,7 @@ export const RoomProvider = ({ children }) => {
     if (!roomId) return;
     
     const interval = setInterval(() => {
-      const activeSocketIds = Object.keys(peersRef.current);
+      const activeSocketIds = Array.from(peersRef.current.keys());
       
       setDiagnostics((prev) => {
         const updatedPeers = { ...prev.peers };
@@ -101,7 +101,7 @@ export const RoomProvider = ({ children }) => {
       });
 
       activeSocketIds.forEach((socketId) => {
-        const pc = peersRef.current[socketId];
+        const pc = peersRef.current.get(socketId);
         if (pc) {
           setDiagnostics((prev) => {
             const updatedPeers = { ...prev.peers };
@@ -257,13 +257,14 @@ export const RoomProvider = ({ children }) => {
 
       // 3. Socket event: On connect, join the specific room
       socket.on('connect', () => {
-        console.log(`[Socket] Connected to signaling server with ID: ${socket.id}`);
+        console.log(`[CALL] socket connected`, socket.id);
         setDiagnostics((prev) => ({ ...prev, socketStatus: 'connected' }));
         socket.emit('join-room', {
           roomId,
           userId: user.id,
           username: user.username,
         });
+        console.log(`[CALL] joined room`, roomId);
       });
 
       socket.on('connect_error', (error) => {
@@ -279,113 +280,101 @@ export const RoomProvider = ({ children }) => {
 
       // 4. Socket event: Receive the list of existing users already in the room
       socket.on('room-participants', (otherPeers) => {
-        console.log(`[Socket] Received room-participants: ${otherPeers.length} active peers`);
         setParticipants(otherPeers);
-
-        // Initiate PeerConnection for each existing user (we are the offer initiator)
         otherPeers.forEach((peer) => {
-          console.log(`[Socket] Initiating peer connection to existing peer: ${peer.username} (${peer.socketId})`);
-          createPeerConnection(peer.socketId, true);
+          console.log(`[CALL] peer joined`, peer.socketId);
+          // Wait for offer (polite-peer: existing user offers, new user waits)
+          createPeerConnection(peer.socketId, false);
         });
       });
 
       // 5. Socket event: A new peer has joined the room
       socket.on('user-joined', ({ socketId, userId, username }) => {
-        console.log(`[Socket] A new peer joined the room: ${username} on socket ${socketId}`);
         setParticipants((prev) => [...prev, { socketId, userId, username }]);
         addToast(`${username} joined the meeting`, '👋');
-
-        // Wait for their offer (we are NOT the offer initiator)
-        console.log(`[Socket] Preparing peer connection receiver for joining peer: ${username} (${socketId})`);
-        createPeerConnection(socketId, false);
+        console.log(`[CALL] peer joined`, socketId);
+        // We are already in the room, so we create the offer
+        createPeerConnection(socketId, true);
       });
 
       // 6. Socket event: Relay WebRTC SDP Offer
-      socket.on('receive-offer', async ({ senderSocketId, sdp }) => {
-        console.log(`[Socket] Received WebRTC SDP Offer from peer socket: ${senderSocketId}`);
-        let pc = peersRef.current[senderSocketId];
+      socket.on('offer', async ({ senderSocketId, offer }) => {
+        console.log(`[CALL] offer received`, senderSocketId);
+        let pc = peersRef.current.get(senderSocketId);
         
         if (!pc) {
-          console.warn(`[Socket] Peer connection for socket ${senderSocketId} not found, creating receiver peer connection...`);
           pc = createPeerConnection(senderSocketId, false);
         }
 
         try {
-          console.log(`[WebRTC] Setting remote description (Offer) for peer socket: ${senderSocketId}`);
-          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+          await pc.setRemoteDescription(new RTCSessionDescription(offer));
           
-          console.log(`[WebRTC] Creating SDP Answer for peer socket: ${senderSocketId}`);
+          console.log(`[CALL] answer created`, senderSocketId);
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
 
-          console.log(`[Socket] Sending WebRTC SDP Answer to peer socket: ${senderSocketId} from sender: ${socketRef.current.id}`);
-          socketRef.current.emit('send-answer', {
+          console.log(`[CALL] answer sent`, senderSocketId);
+          socketRef.current.emit('answer', {
+            roomId,
             senderSocketId: socketRef.current.id,
             targetSocketId: senderSocketId,
-            sdp: answer,
+            answer,
           });
 
           // Drain queued ICE candidates
-          const queue = iceCandidateQueues.current[senderSocketId] || [];
-          console.log(`[WebRTC] Draining ${queue.length} queued ICE candidates for peer socket: ${senderSocketId}`);
+          const queue = pendingCandidatesRef.current.get(senderSocketId) || [];
           while (queue.length > 0) {
             const cand = queue.shift();
             await pc.addIceCandidate(new RTCIceCandidate(cand));
           }
         } catch (err) {
-          console.error(`[WebRTC] Failed to handle received SDP Offer from peer socket ${senderSocketId}:`, err);
           addDiagnosticsError(`Failed to set offer/create answer for ${senderSocketId}: ${err.message}`);
         }
       });
 
       // 7. Socket event: Relay WebRTC SDP Answer
-      socket.on('receive-answer', async ({ senderSocketId, sdp }) => {
-        console.log(`[Socket] Received WebRTC SDP Answer from peer socket: ${senderSocketId}`);
-        const pc = peersRef.current[senderSocketId];
+      socket.on('answer', async ({ senderSocketId, answer }) => {
+        console.log(`[CALL] answer received`, senderSocketId);
+        const pc = peersRef.current.get(senderSocketId);
         if (pc) {
           try {
-            console.log(`[WebRTC] Setting remote description (Answer) for peer socket: ${senderSocketId}`);
-            await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+            await pc.setRemoteDescription(new RTCSessionDescription(answer));
 
             // Drain queued ICE candidates
-            const queue = iceCandidateQueues.current[senderSocketId] || [];
-            console.log(`[WebRTC] Draining ${queue.length} queued ICE candidates for peer socket: ${senderSocketId}`);
+            const queue = pendingCandidatesRef.current.get(senderSocketId) || [];
             while (queue.length > 0) {
               const cand = queue.shift();
               await pc.addIceCandidate(new RTCIceCandidate(cand));
             }
           } catch (err) {
-            console.error(`[WebRTC] Failed to set remote description for peer socket ${senderSocketId}:`, err);
             addDiagnosticsError(`Failed to set answer for ${senderSocketId}: ${err.message}`);
           }
-        } else {
-          console.error(`[WebRTC] No peer connection found for incoming SDP Answer from peer socket: ${senderSocketId}`);
         }
       });
 
       // 8. Socket event: Relay WebRTC ICE Candidates
-      socket.on('receive-ice-candidate', async ({ senderSocketId, candidate }) => {
-        console.log(`[Socket] Received remote ICE Candidate from peer socket: ${senderSocketId}`);
-        const pc = peersRef.current[senderSocketId];
+      socket.on('ice-candidate', async ({ senderSocketId, candidate }) => {
+        console.log(`[CALL] ICE candidate received`, candidate?.candidate);
+        const pc = peersRef.current.get(senderSocketId);
         if (pc && pc.remoteDescription && pc.remoteDescription.type) {
           try {
-            console.log(`[WebRTC] Adding remote ICE Candidate to peer socket: ${senderSocketId}`);
             await pc.addIceCandidate(new RTCIceCandidate(candidate));
           } catch (err) {
-            console.error(`[WebRTC] Failed to add remote ICE Candidate for peer socket ${senderSocketId}:`, err);
             addDiagnosticsError(`Failed to add ICE candidate for ${senderSocketId}: ${err.message}`);
           }
         } else {
-          // Queue candidate if peer connection or remote description is not ready yet
-          console.log(`[WebRTC] Peer connection or remote description not ready. Queueing remote ICE Candidate from peer socket: ${senderSocketId}`);
-          iceCandidateQueues.current[senderSocketId] = iceCandidateQueues.current[senderSocketId] || [];
-          iceCandidateQueues.current[senderSocketId].push(candidate);
+          // Queue candidate
+          let queue = pendingCandidatesRef.current.get(senderSocketId);
+          if (!queue) {
+            queue = [];
+            pendingCandidatesRef.current.set(senderSocketId, queue);
+          }
+          queue.push(candidate);
         }
       });
 
       // 9. Socket event: A peer has left the room
       socket.on('user-left', ({ socketId, username }) => {
-        console.log(`[Socket] Peer left/disconnected: ${username} (${socketId})`);
         addToast(`${username} left the meeting`, '🚪');
         closePeerConnection(socketId);
       });
@@ -458,22 +447,21 @@ export const RoomProvider = ({ children }) => {
 
   // Instantiates an RTCPeerConnection for a remote peer
   const createPeerConnection = (targetSocketId, isOfferInitiator) => {
-    console.log(`[WebRTC] Creating RTCPeerConnection for target socket: ${targetSocketId} (initiator: ${isOfferInitiator})`);
     
     const pc = new RTCPeerConnection(peerConnectionConfig);
-    peersRef.current[targetSocketId] = pc;
+    peersRef.current.set(targetSocketId, pc);
 
     // Attach connectionState event listeners for detailed logging
     pc.onconnectionstatechange = () => {
-      console.log(`[WebRTC] Peer ${targetSocketId} connectionState changed to: ${pc.connectionState}`);
+      console.log(`[CALL] connection state`, pc.connectionState);
     };
 
     pc.oniceconnectionstatechange = () => {
-      console.log(`[WebRTC] Peer ${targetSocketId} iceConnectionState changed to: ${pc.iceConnectionState}`);
+      console.log(`[CALL] ICE state`, pc.iceConnectionState);
     };
 
     pc.onsignalingstatechange = () => {
-      console.log(`[WebRTC] Peer ${targetSocketId} signalingState changed to: ${pc.signalingState}`);
+      console.log(`[CALL] signaling state`, pc.signalingState);
     };
 
     // Attach ICE candidate error listener to log exact failure reason
@@ -485,19 +473,17 @@ export const RoomProvider = ({ children }) => {
     // Attach local stream tracks to the connection
     const currentStream = localStreamRef.current;
     if (currentStream) {
-      console.log(`[WebRTC] Adding local tracks (${currentStream.getTracks().length}) to peer connection for target socket: ${targetSocketId}`);
       currentStream.getTracks().forEach((track) => {
         pc.addTrack(track, currentStream);
       });
-    } else {
-      console.warn(`[WebRTC] Cannot add local tracks: localStream is empty for target socket: ${targetSocketId}`);
     }
 
     // Handle ICE Candidate generation
     pc.onicecandidate = (event) => {
       if (event.candidate && socketRef.current) {
-        console.log(`[Socket] Sending local ICE Candidate to target socket: ${targetSocketId} from sender: ${socketRef.current.id}`);
-        socketRef.current.emit('send-ice-candidate', {
+        console.log(`[CALL] ICE candidate sent`, event.candidate.candidate);
+        socketRef.current.emit('ice-candidate', {
+          roomId,
           senderSocketId: socketRef.current.id,
           targetSocketId,
           candidate: event.candidate,
@@ -507,12 +493,12 @@ export const RoomProvider = ({ children }) => {
 
     // Handle receiving remote media tracks
     pc.ontrack = (event) => {
-      console.log(`[WebRTC] Received remote track from socket: ${targetSocketId}, kind: ${event.track.kind}`);
+      console.log(`[CALL] ontrack fired`, event.streams);
       
       setRemoteStreams((prev) => {
         // 1. If the WebRTC stack provided a native-backed stream, use it directly
         if (event.streams && event.streams[0]) {
-          console.log(`[WebRTC] Using native-backed MediaStream from event.streams[0] for socket: ${targetSocketId}`);
+          console.log(`[CALL] remote stream attached`, targetSocketId);
           return {
             ...prev,
             [targetSocketId]: wrapMediaStream(event.streams[0]),
@@ -524,21 +510,21 @@ export const RoomProvider = ({ children }) => {
         if (existingStream) {
           const hasTrack = existingStream.getTracks().some((t) => t.id === event.track.id);
           if (!hasTrack) {
-            console.log(`[WebRTC] Appending remote track to existing stream for socket: ${targetSocketId}`);
             existingStream.addTrack(event.track);
           }
           // Force a new stream reference so React Native state picks it up
           const updatedStream = wrapMediaStream(existingStream);
           updatedStream._trackCount = existingStream.getTracks().length; 
+          console.log(`[CALL] remote stream attached`, targetSocketId);
           return {
             ...prev,
             [targetSocketId]: updatedStream,
           };
         } else {
           // Create a new stream and add the track
-          console.log(`[WebRTC] Creating new fallback MediaStream for track kind: ${event.track.kind} from socket: ${targetSocketId}`);
           const newStream = new MediaStream();
           newStream.addTrack(event.track);
+          console.log(`[CALL] remote stream attached`, targetSocketId);
           return {
             ...prev,
             [targetSocketId]: wrapMediaStream(newStream),
@@ -552,19 +538,19 @@ export const RoomProvider = ({ children }) => {
       // Run async negotiation
       (async () => {
         try {
-          console.log(`[WebRTC] Creating SDP Offer for target socket: ${targetSocketId}`);
+          console.log(`[CALL] creating offer`, targetSocketId);
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           if (socketRef.current) {
-            console.log(`[Socket] Sending SDP Offer to target socket: ${targetSocketId} from sender: ${socketRef.current.id}`);
-            socketRef.current.emit('send-offer', {
+            console.log(`[CALL] offer sent`, targetSocketId);
+            socketRef.current.emit('offer', {
+              roomId,
               senderSocketId: socketRef.current.id,
               targetSocketId,
-              sdp: offer,
+              offer,
             });
           }
         } catch (err) {
-          console.error(`[WebRTC] Failed to create local SDP offer for target socket ${targetSocketId}:`, err);
           addDiagnosticsError(`Failed to create offer for ${targetSocketId}: ${err.message}`);
         }
       })();
@@ -575,9 +561,10 @@ export const RoomProvider = ({ children }) => {
 
   // Tears down connection with a specific peer
   const closePeerConnection = (socketId) => {
-    if (peersRef.current[socketId]) {
-      peersRef.current[socketId].close();
-      delete peersRef.current[socketId];
+    const pc = peersRef.current.get(socketId);
+    if (pc) {
+      pc.close();
+      peersRef.current.delete(socketId);
     }
 
     setRemoteStreams((prev) => {
@@ -591,8 +578,6 @@ export const RoomProvider = ({ children }) => {
 
   // Full clean up on leaving a call
   const cleanupCallSession = () => {
-    console.log('Cleaning up active call session');
-
     const stream = localStreamRef.current;
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
@@ -604,11 +589,9 @@ export const RoomProvider = ({ children }) => {
       screenStreamRef.current = null;
     }
 
-    Object.keys(peersRef.current).forEach((socketId) => {
-      peersRef.current[socketId].close();
-    });
-    peersRef.current = {};
-    iceCandidateQueues.current = {};
+    peersRef.current.forEach((pc) => pc.close());
+    peersRef.current.clear();
+    pendingCandidatesRef.current.clear();
 
     if (socketRef.current) {
       socketRef.current.disconnect();

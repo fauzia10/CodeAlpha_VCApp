@@ -39,28 +39,21 @@ const RTCIceCandidate = typeof window !== 'undefined' ? window.RTCIceCandidate :
 const RTCSessionDescription = typeof window !== 'undefined' ? window.RTCSessionDescription : null;
 
 // Standard web browser implementation for React Native Web video grids
-const RTCView = ({ streamURL, style, objectFit, mirror, muted = false }) => {
+const RTCView = ({ streamURL, stream, style, objectFit, mirror, muted = false }) => {
   const videoRef = useRef(null);
 
-  const stream = typeof window !== 'undefined' && window.webMediaStreams
+  const activeStream = stream || (typeof window !== 'undefined' && window.webMediaStreams
     ? window.webMediaStreams.get(streamURL)
-    : null;
-  const tracksHash = stream ? stream.getTracks().map(t => t.id + '_' + t.enabled).join(',') : '';
+    : null);
 
   useEffect(() => {
-    if (videoRef.current) {
-      if (stream) {
-        if (videoRef.current.srcObject !== stream) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(err => console.warn('video play error', err));
-        }
-      } else {
-        if (videoRef.current.srcObject !== null) {
-          videoRef.current.srcObject = null;
-        }
+    if (videoRef.current && activeStream) {
+      if (videoRef.current.srcObject !== activeStream) {
+        videoRef.current.srcObject = activeStream;
       }
+      videoRef.current.play().catch(err => console.warn('video play error', err));
     }
-  }, [streamURL, tracksHash, stream]);
+  }, [activeStream]);
 
   return (
     <View style={style}>

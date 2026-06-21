@@ -98,30 +98,36 @@ const initSocketService = (server) => {
     });
 
     // WebRTC Signaling: Forward SDP Offer to target peer
-    socket.on('send-offer', ({ senderSocketId, targetSocketId, sdp }) => {
+    socket.on('offer', ({ roomId, targetSocketId, senderSocketId, offer }) => {
       const fromId = senderSocketId || socket.id;
       console.log(`Forwarding SDP Offer from ${fromId} to ${targetSocketId}`);
-      io.to(targetSocketId).emit('receive-offer', {
+      io.to(targetSocketId).emit('offer', {
+        roomId,
+        targetSocketId,
         senderSocketId: fromId,
-        sdp,
+        offer,
       });
     });
 
     // WebRTC Signaling: Forward SDP Answer to target peer
-    socket.on('send-answer', ({ senderSocketId, targetSocketId, sdp }) => {
+    socket.on('answer', ({ roomId, targetSocketId, senderSocketId, answer }) => {
       const fromId = senderSocketId || socket.id;
       console.log(`Forwarding SDP Answer from ${fromId} to ${targetSocketId}`);
-      io.to(targetSocketId).emit('receive-answer', {
+      io.to(targetSocketId).emit('answer', {
+        roomId,
+        targetSocketId,
         senderSocketId: fromId,
-        sdp,
+        answer,
       });
     });
 
     // WebRTC Signaling: Forward ICE Candidate to target peer
-    socket.on('send-ice-candidate', ({ senderSocketId, targetSocketId, candidate }) => {
+    socket.on('ice-candidate', ({ roomId, targetSocketId, senderSocketId, candidate }) => {
       const fromId = senderSocketId || socket.id;
       console.log(`Forwarding ICE Candidate from ${fromId} to ${targetSocketId}`);
-      io.to(targetSocketId).emit('receive-ice-candidate', {
+      io.to(targetSocketId).emit('ice-candidate', {
+        roomId,
+        targetSocketId,
         senderSocketId: fromId,
         candidate,
       });

@@ -8,7 +8,7 @@ const turnCredential = process.env.EXPO_PUBLIC_TURN_CREDENTIAL || process.env.VI
 export const isTurnConfigured = turnUrl !== '' && turnUsername !== '' && turnCredential !== '';
 
 console.log(`[WebRTC] TURN configured: ${isTurnConfigured}`);
-console.log(`[WebRTC] TURN URL count: ${isTurnConfigured ? 3 : 0}`);
+console.log(`[WebRTC] TURN URL count: ${isTurnConfigured ? 1 : 0}`);
 
 export const peerConnectionConfig = {
   get iceServers() {
